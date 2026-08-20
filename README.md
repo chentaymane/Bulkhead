@@ -51,6 +51,15 @@ the streams.
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
+```
+┌─ LANE 4 ── MAXIMUM ─────────────────────────────────────────────────┐
+│ Serious threat model: journalism, whistleblowing, hostile research  │
+│ Not a browser — an OS: Tails / Whonix / Qubes-Whonix                │
+│ Tor, PLUS the isolation plain Tor Browser doesn't have              │
+│ Build only if you can say who you're hiding from in one sentence.   │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
 **The counterintuitive rule that matters most:** in Lane 3, *do not customize anything*. No
 extensions, no theme, no window resize, no settings changes. Mullvad and Tor Browser protect
 you by making every user byte-identical. The moment you personalize one, you leave the crowd
@@ -106,10 +115,33 @@ Firefox or Brave.
 
 1. **[docs/threat-model.md](docs/threat-model.md)** — decide who you're actually hiding from. Ten minutes that saves you from doing the wrong work.
 2. **[docs/coherence-matrix.md](docs/coherence-matrix.md)** — the anti-ban engine. The single most important file here.
-3. **[lanes/lane1-identity.md](lanes/lane1-identity.md)** → **[lane2-daily.md](lanes/lane2-daily.md)** → **[lane3-anonymous.md](lanes/lane3-anonymous.md)** — build them in this order.
+3. **[lanes/lane1-identity.md](lanes/lane1-identity.md)** → **[lane2-daily.md](lanes/lane2-daily.md)** → **[lane3-anonymous.md](lanes/lane3-anonymous.md)** — build them in this order. **[lane4-maximum.md](lanes/lane4-maximum.md)** only if the threat model demands it.
 4. **[network/README.md](network/README.md)** — IP, DNS, WireGuard, kill switch, TLS fingerprint.
 5. **[scripts/Harden-Windows.ps1](scripts/Harden-Windows.ps1)** — OS layer. Dry-run by default; read it before you run it.
 6. **[testing/CHECKLIST.md](testing/CHECKLIST.md)** — prove it works. Do not skip.
+
+## Going further — and where the room actually is
+
+> **Your browser layer is already near its safe maximum. Every remaining gain is BELOW it
+> (network, OS, hardware) or ABOVE it (identity, payment, behavior).**
+
+Adding more browser spoofing from here makes you *more* detectable and *more* banned. So the
+upgrade path routes around the browser entirely — and none of it raises ban risk:
+
+- **[docs/technology-stack.md](docs/technology-stack.md)** — every available technology by layer, with a *ban risk* column
+- **[docs/beyond-tor.md](docs/beyond-tor.md)** — what "better than Tor" honestly means, and the setup that achieves it
+- **[network/advanced.md](network/advanced.md)** — ECH, oblivious DNS, post-quantum tunnels, DAITA, multihop, obfuscation
+- **[lanes/lane4-maximum.md](lanes/lane4-maximum.md)** — Tails / Whonix / Qubes-Whonix
+
+Audit where you stand:
+
+```bash
+powershell -ExecutionPolicy Bypass -File ".\scripts\Test-Advanced.ps1"
+```
+
+Two things most people miss: **full-disk encryption** (everything else is theatre if your laptop
+is taken) and **email aliasing** (your address is a stronger cross-site key than any
+fingerprint — it's exact and permanent).
 
 ## The one metric that predicts bans
 

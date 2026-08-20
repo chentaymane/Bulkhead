@@ -301,6 +301,43 @@ function Start-Lane3 {
     Write-Host "    - CAPTCHAs are the price of the crowd. Do not 'fix' them by customizing." -ForegroundColor Magenta
 }
 
+function Start-Lane4 {
+    Write-Head "Lane 4 -- Maximum"
+    Write-Host "  Tor, plus isolation that Tor Browser alone does not have." -ForegroundColor Magenta
+    Write-Host ""
+    Write-Host "  Lane 4 is not a browser you launch from Windows -- it is a" -ForegroundColor White
+    Write-Host "  different operating system. That IS the upgrade: plain Tor Browser" -ForegroundColor White
+    Write-Host "  is one process on your normal PC, so a browser exploit reaches your" -ForegroundColor White
+    Write-Host "  real IP and your real disk. Lane 4 removes that." -ForegroundColor White
+    Write-Host ""
+    Write-Host "    Tails         live USB, amnesic, nothing survives reboot" -ForegroundColor Gray
+    Write-Host "                  best forensic resistance; runs on any PC" -ForegroundColor DarkGray
+    Write-Host "                  https://tails.net" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "    Whonix        two VMs -- the Workstation cannot reach the network" -ForegroundColor Gray
+    Write-Host "                  except through the Tor Gateway, so it does not KNOW" -ForegroundColor DarkGray
+    Write-Host "                  your real IP even if it is fully compromised" -ForegroundColor DarkGray
+    Write-Host "                  https://www.whonix.org" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "    Qubes-Whonix  Whonix inside per-application VM isolation." -ForegroundColor Gray
+    Write-Host "                  The strongest generally-available configuration." -ForegroundColor DarkGray
+    Write-Host "                  https://www.qubes-os.org  (check the HCL first)" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  Build guide: lanes\lane4-maximum.md" -ForegroundColor Yellow
+    Write-Host "  Honest comparison with Tor: docs\beyond-tor.md" -ForegroundColor Yellow
+    Write-Host ""
+
+    if ($Browsers.Tor) {
+        Write-Host "  You have Tor Browser installed. It is NOT Lane 4 -- it has no" -ForegroundColor DarkGray
+        Write-Host "  isolation -- but it is the strongest thing available right now." -ForegroundColor DarkGray
+        $a = Read-Host "  Launch Tor Browser? (y/N)"
+        if ($a -eq 'y') {
+            Start-Process $Browsers.Tor
+            Write-Host "  Launched Tor Browser. Change nothing. Log into nothing." -ForegroundColor Green
+        }
+    }
+}
+
 # ---------- firefox profile helpers ----------------------------------------
 function Get-FirefoxProfilePath {
     param([string]$Name)
@@ -356,6 +393,32 @@ function Invoke-Auto {
         if ($v -eq $c.W) { Write-Row 'OK' $c.L "= $v" 'Green'; $hardened++ }
         else { Write-Row 'TODO' $c.L "not set -- run option H" 'Yellow' }
     }
+
+    # --- 1b. advanced layer (compact -- full detail in Test-Advanced.ps1) ---
+    Write-Head "Advanced layer"
+
+    $dohActive = $false
+    try {
+        foreach ($a in (Get-NetAdapter | Where-Object Status -eq 'Up')) {
+            $k = "HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\InterfaceSpecificParameters\$($a.InterfaceGuid)\DohInterfaceSettings"
+            if (Test-Path $k) { $dohActive = $true }
+        }
+    } catch { }
+    if ($dohActive) { Write-Row 'OK' 'Encrypted DNS (DoH)' 'active' 'Green' }
+    else { Write-Row 'TODO' 'Encrypted DNS (DoH)' 'off -- required for ECH' 'Yellow' }
+
+    $echOn = $false
+    $bls = Join-Path $Config.BraveDataDir 'Local State'
+    if (Test-Path $bls) {
+        try {
+            $l = Get-Content $bls -Raw | ConvertFrom-Json
+            $echOn = (($l.browser.enabled_labs_experiments -join ',') -match 'encrypted-client-hello')
+        } catch { }
+    }
+    if ($echOn) { Write-Row 'OK' 'ECH (encrypted SNI)' 'enabled' 'Green' }
+    else { Write-Row 'TODO' 'ECH (encrypted SNI)' 'brave://flags -> Encrypted ClientHello' 'Yellow' }
+
+    Write-Host "          Full audit: option A, or scripts\Test-Advanced.ps1" -ForegroundColor DarkGray
 
     # --- 2. browsers --------------------------------------------------------
     Write-Head "Browsers"
@@ -537,9 +600,11 @@ function Show-Menu {
     Write-Host "   1   Lane 1  Identity    bank / gov / work      real fingerprint" -ForegroundColor Blue
     Write-Host "   2   Lane 2  Daily       shopping / social      hardened, coherent" -ForegroundColor Yellow
     Write-Host "   3   Lane 3  Anonymous   research / reading     uniform crowd" -ForegroundColor Magenta
+    Write-Host "   4   Lane 4  Maximum     serious threat model   Tails / Whonix / Qubes" -ForegroundColor DarkMagenta
     Write-Host ""
     Write-Host "   I   Install missing browsers  (winget)" -ForegroundColor Gray
     Write-Host "   T   Run full leak test        (scripts\Test-Leaks.ps1)" -ForegroundColor Gray
+    Write-Host "   A   Advanced audit            (FDE, DoH, ECH, tunnel features)" -ForegroundColor Gray
     Write-Host "   H   Windows hardening, dry run (scripts\Harden-Windows.ps1)" -ForegroundColor Gray
     Write-Host "   F   Fingerprint rotation -- does it change every launch?" -ForegroundColor Gray
     Write-Host "   C   Open the verification checklist" -ForegroundColor Gray
@@ -587,10 +652,15 @@ while ($true) {
         '1' { Start-Lane1 }
         '2' { Start-Lane2 -VpnUp $State.VpnUp }
         '3' { Start-Lane3 -VpnUp $State.VpnUp }
+        '4' { Start-Lane4 }
         'I' { Install-Missing }
         'T' {
             $t = Join-Path $Root 'scripts\Test-Leaks.ps1'
             if (Test-Path $t) { & $t } else { Write-Host "  Not found: $t" -ForegroundColor Red }
+        }
+        'A' {
+            $a = Join-Path $Root 'scripts\Test-Advanced.ps1'
+            if (Test-Path $a) { & $a } else { Write-Host "  Not found: $a" -ForegroundColor Red }
         }
         'H' {
             $h = Join-Path $Root 'scripts\Harden-Windows.ps1'
