@@ -12,7 +12,7 @@ major browser update, and any time a site starts challenging you unexpectedly.
 Browser tests are meaningless if the tunnel leaks.
 
 ```powershell
-.\scripts\Test-Leaks.ps1
+.\Bulkhead.ps1 -Audit
 ```
 
 Then externally:

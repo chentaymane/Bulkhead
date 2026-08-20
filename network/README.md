@@ -62,7 +62,7 @@ Three ways, strongest last:
 1. **Provider app kill switch** — easiest, usually sufficient, enable it.
 2. **WireGuard `PostUp`/`PostDown` firewall rules** — see the template.
 3. **Windows Firewall outbound block rules** — belt and braces. The
-   [`../scripts/Harden-Windows.ps1`](../scripts/Harden-Windows.ps1) script can install rules
+   `Bulkhead.ps1 -Harden` script can install rules
    that permit outbound traffic only on the WireGuard interface.
 
 Test it by pulling the VPN mid-download. Traffic should **stop**, not fall back.

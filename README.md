@@ -27,7 +27,7 @@ a louder alarm than no spoofing at all. The bans come from *incoherence*, not fr
 
 ## The resolution: compartmentalize, don't disguise
 
-Do not build one super-browser. Build three environments with different jobs, and never cross
+Do not build one super-browser. Build four environments with different jobs, and never cross
 the streams.
 
 ```
@@ -78,7 +78,7 @@ and become the single most identifiable person on the network.
 |---|---|---|
 | **L0 Behavior** | mouse curvature, scroll cadence, keystroke timing, session rhythm | [antipatterns.md](docs/antipatterns.md) |
 | **L1 Network** | IP + reputation + geo, DNS, WebRTC, IPv6, **TLS/JA4**, HTTP/2 frame order, TCP/IP stack | [network/](network/README.md) |
-| **L2 Machine** | **MAC**, hostname, Wi-Fi probes, clock skew, GPU, OS telemetry | [scripts/Harden-Windows.ps1](scripts/Harden-Windows.ps1) |
+| **L2 Machine** | **MAC**, hostname, Wi-Fi probes, clock skew, GPU, OS telemetry | [Bulkhead.ps1](Bulkhead.ps1) `-Harden` |
 | **L3 Browser** | canvas, **WebGL**, **WebGPU**, audio, fonts, screen, timezone, UA-CH, speech voices, +30 more | [vector-reference.md](docs/vector-reference.md) |
 
 ### About the MAC address — an important correction
@@ -98,53 +98,44 @@ handled in the hardening script.
 
 ## Run it
 
-One file drives everything — preflight leak checks, then launches the right browser in the
-right lane:
+**One script does everything.** Double-click `BULKHEAD.cmd`, or:
 
 ```
-powershell -ExecutionPolicy Bypass -File ".\Start-Bulkhead.ps1"
+powershell -ExecutionPolicy Bypass -File ".\Bulkhead.ps1"
 ```
-
-It refuses to open Lanes 2 and 3 while the tunnel is down, so you can't browse "privately" over
-your real IP by accident. `-Lane 3` skips the menu.
-
-**Two files, two jobs:**
 
 | | |
 |---|---|
-| **`RUN.cmd`** | everyday use — checks everything, opens the browser. No admin needed. |
-| **`HARDEN.cmd`** | one time — closes the OS-layer gaps. Asks for admin (UAC), shows a dry run first, then asks before changing anything. |
+| `BULKHEAD.cmd` | double-click — checks everything, then opens the browser |
+| `BULKHEAD.cmd menu` | the full menu: lanes, audit, harden, VPN, install |
+| `Bulkhead.ps1 -Audit` | read-only audit — disk, DNS, ECH, leaks |
+| `Bulkhead.ps1 -Harden -Apply` | OS hardening (self-elevates) |
+| `Bulkhead.ps1 -Revert -Apply` | undo the hardening |
 
-`HARDEN.cmd` needs administrator because mDNS, NetBIOS and multi-homed DNS are machine-wide
-settings. It shows you exactly what it will change before it changes it, and everything is
-recorded to `scripts\revert-state.json` so `Revert-Hardening.ps1 -Apply` can undo all of it.
+It runs **unelevated on purpose** — browsers must never launch as administrator.
+The only part needing admin (OS hardening) opens its own elevated window from
+the menu, and everything it changes is recorded to `revert-state.json` so it can
+be undone.
 
-Menu keys worth knowing: `I` installs missing browsers via winget · `F` explains fingerprint
-rotation · `T` runs the leak test · `H` dry-runs the Windows hardening.
+It refuses to open Lanes 2 and 3 while the tunnel is down, so you can't browse
+"privately" over your real IP by accident.
 
 ### Identity mode
 
-`$Config.IdentityMode` at the top of the launcher controls what carries over between launches:
+`$Config.IdentityMode` near the top of `Bulkhead.ps1`:
 
 | Mode | Behavior |
 |---|---|
-| `Fresh` *(current)* | **New identity every launch.** A clean profile is stamped from a configured template; the previous session is deleted. No cookies, no history, no logins. |
+| `Fresh` *(default)* | **New identity every launch.** A clean profile is stamped from a configured template; the previous one is deleted. No cookies, no history, no logins. |
 | `Persistent` | One profile kept forever. Logins and history survive. Fingerprint randomization still reseeds each launch. |
 
-**Fresh mode does not change your IP.** Without a VPN it buys you very little — sites link you by
-IP in one step. It also means zero browsing history, which reads as automation
-([antipattern #12](docs/antipatterns.md)), so expect more CAPTCHAs. Lane 3 does this natively
-*and* gives you a uniform fingerprint, which Fresh mode can't.
+**Fresh mode does not change your IP.** Without a VPN it buys very little — sites
+link you by IP in one step. It also means zero history, which reads as automation
+([antipattern #12](docs/antipatterns.md)), so expect more CAPTCHAs. Lane 3 does
+this natively *and* gives you a uniform fingerprint, which Fresh mode can't.
 
-Anything you want to survive — a bookmark, a `brave://flags` setting — has to go in the
-**template** (`%LOCALAPPDATA%\Bulkhead\brave-template`), not in a session, or it dies with it.
-
-Lane 2 self-configures on first launch — if the Brave profile hasn't been hardened yet, the
-launcher runs [scripts/Configure-Brave.ps1](scripts/Configure-Brave.ps1) before opening it, so
-the lane is never used unhardened.
-
-Edit the `$Config` block at the top once: your expected exit country and whether Lane 2 is
-Firefox or Brave.
+Anything you want to survive a launch must go in the **template**
+(`%LOCALAPPDATA%\Bulkhead\brave-template`), not in a session, or it dies with it.
 
 ## Start here
 
@@ -152,7 +143,7 @@ Firefox or Brave.
 2. **[docs/coherence-matrix.md](docs/coherence-matrix.md)** — the anti-ban engine. The single most important file here.
 3. **[lanes/lane1-identity.md](lanes/lane1-identity.md)** → **[lane2-daily.md](lanes/lane2-daily.md)** → **[lane3-anonymous.md](lanes/lane3-anonymous.md)** — build them in this order. **[lane4-maximum.md](lanes/lane4-maximum.md)** only if the threat model demands it.
 4. **[network/README.md](network/README.md)** — IP, DNS, WireGuard, kill switch, TLS fingerprint.
-5. **[scripts/Harden-Windows.ps1](scripts/Harden-Windows.ps1)** — OS layer. Dry-run by default; read it before you run it.
+5. **`Bulkhead.ps1 -Harden`** — OS layer. Dry-run by default; read it before you run it.
 6. **[testing/CHECKLIST.md](testing/CHECKLIST.md)** — prove it works. Do not skip.
 
 ## Going further — and where the room actually is
@@ -171,7 +162,7 @@ upgrade path routes around the browser entirely — and none of it raises ban ri
 Audit where you stand:
 
 ```bash
-powershell -ExecutionPolicy Bypass -File ".\scripts\Test-Advanced.ps1"
+powershell -ExecutionPolicy Bypass -File ".Bulkhead.ps1 -Audit"
 ```
 
 Two things most people miss: **full-disk encryption** (everything else is theatre if your laptop

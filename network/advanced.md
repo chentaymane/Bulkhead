@@ -4,7 +4,7 @@ Concrete configuration for the technologies in
 [../docs/technology-stack.md](../docs/technology-stack.md). None of these raise your ban risk;
 several lower it. This is where your remaining privacy gains actually live.
 
-Run `scripts\Test-Advanced.ps1` to see which of these you already have.
+Run `Bulkhead.ps1 -Audit` to see which of these you already have.
 
 ---
 
@@ -73,7 +73,7 @@ So on Windows 10 encrypted DNS comes from one of two places:
 | **The browser** | always — and it's what Chromium uses for ECH |
 | The VPN tunnel | once a VPN is connected, it resolves inside the tunnel |
 
-**Browser DoH is already configured** by `scripts\Configure-Brave.ps1`:
+**Browser DoH is already configured** by `Bulkhead.ps1 -Configure`:
 
 ```
 dns_over_https.mode      = secure
@@ -88,7 +88,7 @@ Other good resolvers if you'd rather not use Quad9: `https://cloudflare-dns.com/
 `https://dns.mullvad.net/dns-query`.
 
 **Still fix this either way:** Windows *Smart Multi-Homed Name Resolution* sends DNS out every
-interface in parallel — the classic way queries escape a VPN. `scripts\Harden-Windows.ps1`
+interface in parallel — the classic way queries escape a VPN. `Bulkhead.ps1 -Harden`
 disables it.
 
 ---
@@ -165,9 +165,9 @@ Where you stand and what to do, in order:
 | 1 | Browser encrypted DNS | ✅ done | `dns_over_https.mode = secure`, Quad9 |
 | 2 | ECH | ✅ active | on by default + browser DoH present |
 | 3 | LLMNR off | ✅ done | |
-| 4 | mDNS off | ❌ not set | **double-click `HARDEN.cmd`** |
-| 5 | Multi-homed DNS off | ❌ not set | same run |
-| 6 | Full-disk encryption | ❓ unchecked | run `Test-Advanced.ps1` elevated |
+| 4 | mDNS off | ✅ done | |
+| 5 | Multi-homed DNS off | ✅ done | |
+| 6 | Full-disk encryption | ❓ unchecked | run `Bulkhead.ps1 -Audit` elevated |
 | 7 | VPN + kill switch | ❌ none | Mullvad installed, needs your account |
 | 8 | Post-quantum | n/a | free toggle once VPN connects |
 | 9 | DAITA | n/a | free toggle once VPN connects |

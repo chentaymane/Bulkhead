@@ -1,6 +1,6 @@
-# Machine-specific state written by Harden-Windows.ps1 -Apply.
+# Machine-specific state written by Bulkhead.ps1 -Harden -Apply.
 # Contains your previous registry values and hostname. Local only.
-scripts/revert-state.json
+revert-state.json
 
 # ---------------------------------------------------------------------------
 # REAL WireGuard configs contain your PRIVATE KEY. Never commit them.
