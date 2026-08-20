@@ -100,15 +100,35 @@ $Browsers = @{
         '%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe'
         '%ProgramFiles%\Microsoft\Edge\Application\msedge.exe'
     )
+    # NB: the real install path is Mullvad\MullvadBrowser\Release\ and the exe
+    # is "mullvadbrowser.exe" -- no hyphen. The hyphenated / "Mullvad Browser"
+    # variants below are legacy fallbacks only.
     Mullvad = Find-Browser @(
+        '%LOCALAPPDATA%\Mullvad\MullvadBrowser\Release\mullvadbrowser.exe'
+        '%ProgramFiles%\Mullvad\MullvadBrowser\Release\mullvadbrowser.exe'
+        '%ProgramFiles%\Mullvad Browser\mullvadbrowser.exe'
+        '%LOCALAPPDATA%\Mullvad Browser\mullvadbrowser.exe'
         '%ProgramFiles%\Mullvad Browser\mullvad-browser.exe'
         '%LOCALAPPDATA%\Mullvad Browser\mullvad-browser.exe'
         "$env:USERPROFILE\Desktop\Mullvad Browser\mullvad-browser.exe"
-        '%ProgramFiles%\Mullvad Browser\Browser\firefox.exe'
     )
     Tor = Find-Browser @(
         "$env:USERPROFILE\Desktop\Tor Browser\Browser\firefox.exe"
         '%LOCALAPPDATA%\Tor Browser\Browser\firefox.exe'
+        "$env:USERPROFILE\Downloads\Tor Browser\Browser\firefox.exe"
+    )
+}
+
+# VPN client applications -- the GUI, not the tunnel interface.
+$VpnApps = @{
+    Mullvad = Find-Browser @(
+        '%ProgramFiles%\Mullvad VPN\Mullvad VPN.exe'
+        '%ProgramFiles(x86)%\Mullvad VPN\Mullvad VPN.exe'
+    )
+    Proton = Find-Browser @(
+        '%ProgramFiles%\Proton\VPN\ProtonVPN.exe'
+        '%ProgramFiles(x86)%\Proton\VPN\ProtonVPN.exe'
+        '%LOCALAPPDATA%\Programs\Proton\VPN\ProtonVPN.exe'
     )
 }
 
@@ -375,6 +395,52 @@ function Ensure-FirefoxProfile {
     Write-Host "  Created." -ForegroundColor Green
 }
 
+# ---------- VPN control -----------------------------------------------------
+function Start-Vpn {
+    Write-Head "VPN"
+
+    $app = $null; $name = $null
+    foreach ($k in 'Mullvad','Proton') { if ($VpnApps[$k]) { $app = $VpnApps[$k]; $name = $k; break } }
+
+    if (-not $app) {
+        Write-Host "  No VPN client installed." -ForegroundColor Red
+        Write-Host "  Press I in the menu to install one, or:" -ForegroundColor Yellow
+        Write-Host "    winget install --id MullvadVPN.MullvadVPN --exact" -ForegroundColor Cyan
+        Write-Host "    winget install --id Proton.ProtonVPN --exact       (free tier)" -ForegroundColor Cyan
+        return
+    }
+
+    Write-Row 'OK' "$name client installed" $app 'Green'
+
+    # The daemon runs as a service; the GUI is a separate process. A running
+    # daemon with no GUI is exactly why "I can't find Mullvad" happens.
+    $daemon = Get-Service -Name 'MullvadVPN' -ErrorAction SilentlyContinue
+    if ($daemon) { Write-Row 'OK' 'Background service' $daemon.Status 'Green' }
+
+    $gui = Get-Process -Name '*mullvad*','*proton*' -ErrorAction SilentlyContinue |
+           Where-Object { $_.MainWindowTitle -or $_.ProcessName -notlike '*daemon*' }
+    if ($gui) { Write-Row 'OK' 'App window' 'already running (check the system tray)' 'Green' }
+    else      { Write-Row 'INFO' 'App window' 'not running -- opening it now' 'Yellow' }
+
+    Start-Process $app
+    Write-Host ""
+    Write-Host "  $name opened. It may go straight to the system tray (bottom-right)." -ForegroundColor Green
+    Write-Host ""
+    Write-Host "  FIRST TIME:" -ForegroundColor White
+    Write-Host "    1. Create account -> you get a 16-digit number, no email needed" -ForegroundColor Gray
+    Write-Host "    2. SAVE THAT NUMBER. It is your account. No password reset exists." -ForegroundColor Yellow
+    Write-Host "    3. Add time (card / PayPal / cash / crypto)" -ForegroundColor Gray
+    Write-Host "    4. Connect -- pick Spain or France (matches your Morocco timezone)" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  THEN ENABLE in Settings > VPN settings (all free):" -ForegroundColor White
+    Write-Host "    Kill switch / Lockdown mode   no leak if the tunnel drops -- REQUIRED" -ForegroundColor Gray
+    Write-Host "    Quantum-resistant tunnel      defeats harvest-now-decrypt-later" -ForegroundColor Gray
+    Write-Host "    DAITA                         defeats AI traffic-analysis" -ForegroundColor Gray
+    Write-Host "    Auto-connect                  never accidentally unprotected" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  Then press R here to re-run preflight -- it should flip to VPN up." -ForegroundColor Cyan
+}
+
 # ---------- one-button automatic mode --------------------------------------
 function Invoke-Auto {
     param($State)
@@ -465,7 +531,16 @@ function Invoke-Auto {
         Write-Host ""
         Write-Host "  Opening anyway: hardened Brave with no VPN is still better than" -ForegroundColor Yellow
         Write-Host "  your normal browser with no VPN. But the plan is not complete" -ForegroundColor Yellow
-        Write-Host "  until a tunnel is up. Press I in the menu to install Mullvad VPN." -ForegroundColor Yellow
+        Write-Host "  until a tunnel is up." -ForegroundColor Yellow
+        Write-Host ""
+        $vpnApp = ($VpnApps.Values | Where-Object { $_ } | Select-Object -First 1)
+        if ($vpnApp) {
+            Write-Host "  A VPN client IS installed but not connected:" -ForegroundColor Cyan
+            Write-Host "    $vpnApp" -ForegroundColor DarkGray
+            Write-Host "  Open it from the Start menu, or press V in the full menu." -ForegroundColor Cyan
+        } else {
+            Write-Host "  No VPN client installed. Press I in the full menu." -ForegroundColor Cyan
+        }
         Write-Host ""
     }
 
@@ -610,6 +685,7 @@ function Show-Menu {
     Write-Host "   3   Lane 3  Anonymous   research / reading     uniform crowd" -ForegroundColor Magenta
     Write-Host "   4   Lane 4  Maximum     serious threat model   Tails / Whonix / Qubes" -ForegroundColor DarkMagenta
     Write-Host ""
+    Write-Host "   V   Open the VPN app          (connect / settings)" -ForegroundColor Gray
     Write-Host "   I   Install missing browsers  (winget)" -ForegroundColor Gray
     Write-Host "   T   Run full leak test        (scripts\Test-Leaks.ps1)" -ForegroundColor Gray
     Write-Host "   A   Advanced audit            (FDE, DoH, ECH, tunnel features)" -ForegroundColor Gray
@@ -661,6 +737,7 @@ while ($true) {
         '2' { Start-Lane2 -VpnUp $State.VpnUp }
         '3' { Start-Lane3 -VpnUp $State.VpnUp }
         '4' { Start-Lane4 }
+        'V' { Start-Vpn }
         'I' { Install-Missing }
         'T' {
             $t = Join-Path $Root 'scripts\Test-Leaks.ps1'
