@@ -64,7 +64,7 @@ That's it. Every additional extension is a detectable signal on a site that will
 
 ## Why this looks like a contradiction and isn't
 
-You asked for maximum privacy. This lane has almost none, by design — and that's what makes the
+This lane has almost no privacy, by design — and that's exactly what makes the
 *other* two lanes safe to push hard. Because Lane 1 is quarantined, nothing you do in Lanes 2
 and 3 can ever be correlated back to your legal identity through a shared browser profile,
 shared cache, shared cookie jar, or shared fingerprint.

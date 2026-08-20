@@ -30,11 +30,11 @@ your laptop.
 
 | Technology | What it buys | Ban risk | Priority |
 |---|---|---|---|
-| **MAC randomization** (per-network) | defeats Wi-Fi/venue tracking | — | done ✅ |
-| **Neutral hostname** | stops broadcasting your name via DHCP/mDNS/NetBIOS | — | done ✅ |
-| **LLMNR / mDNS / NetBIOS off** | stops LAN query broadcast | — | done ✅ |
+| **MAC randomization** (per-network) | defeats Wi-Fi/venue tracking | — | handled by `-Harden` |
+| **Neutral hostname** | stops broadcasting your name via DHCP/mDNS/NetBIOS | — | handled by `-Harden` |
+| **LLMNR / mDNS / NetBIOS off** | stops LAN query broadcast | — | handled by `-Harden` |
 | **Smart multi-homed DNS off** | closes the classic Windows VPN DNS leak | ⬇ | **do now** |
-| Telemetry + advertising ID off | cuts OS-level cross-app tracking | — | done ✅ |
+| Telemetry + advertising ID off | cuts OS-level cross-app tracking | — | handled by `-Harden` |
 | **Amnesic OS** (Tails) | nothing survives reboot; forensics resistance | — | Lane 4 |
 | **VM isolation** (Whonix, Qubes) | a browser exploit can't reach your real IP or disk | — | Lane 4 |
 | RAM-only browsing / tmpfs profile | no disk artifacts | — | Lane 4 |

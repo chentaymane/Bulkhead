@@ -12,7 +12,7 @@ If you change anything in the left column, you must change everything in the rig
 
 | If you change… | You MUST also change | Why it burns you |
 |---|---|---|
-| **Exit IP country** | timezone, `Accept-Language`, `navigator.language`, `Intl` locale, currency prefs | IP in Morocco + `America/New_York` clock is the oldest tell in the book |
+| **Exit IP country** | timezone, `Accept-Language`, `navigator.language`, `Intl` locale, currency prefs | An IP in Lisbon with an `America/New_York` clock is the oldest tell in the book |
 | **User-Agent** | `Sec-CH-UA`, `Sec-CH-UA-Platform`, `Sec-CH-UA-Full-Version-List`, `Sec-CH-UA-Arch`, `Sec-CH-UA-Bitness`, `Sec-CH-UA-Platform-Version`, `Sec-CH-UA-Mobile`, **JA4 TLS fingerprint**, HTTP/2 SETTINGS + header order | UA switchers change one string and leave nine others. Client-Hint/UA mismatch is described by vendors as a *highly reliable* spoof signal |
 | **Claimed browser engine** | the actual TLS ClientHello (cipher order, extensions, ALPN, GREASE) | You cannot fake JA4 from inside the page. Chrome UA + Firefox JA4 = caught at the edge, before a single line of your JS runs |
 | **`navigator.platform` / OS** | installed font set, scrollbar width, `speechSynthesis` voice list, `navigator.oscpu`, path separators in file inputs, `Sec-CH-UA-Platform` | Windows UA with no Segoe UI / Calibri, or macOS UA serving Windows SAPI voices, is self-refuting |

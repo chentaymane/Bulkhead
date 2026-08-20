@@ -156,22 +156,21 @@ Only needed under censorship or restrictive networks. Adds latency. Skip unless 
 
 ---
 
-## 7. Your configuration checklist
+## 7. Priority order
 
-Where you stand and what to do, in order:
+Work down this list. Run `Bulkhead.ps1 -Audit` to see where you actually stand.
 
-| # | Item | Your status | Action |
-|---|---|---|---|
-| 1 | Browser encrypted DNS | ✅ done | `dns_over_https.mode = secure`, Quad9 |
-| 2 | ECH | ✅ active | on by default + browser DoH present |
-| 3 | LLMNR off | ✅ done | |
-| 4 | mDNS off | ✅ done | |
-| 5 | Multi-homed DNS off | ✅ done | |
-| 6 | Full-disk encryption | ❓ unchecked | run `Bulkhead.ps1 -Audit` elevated |
-| 7 | VPN + kill switch | ❌ none | Mullvad installed, needs your account |
-| 8 | Post-quantum | n/a | free toggle once VPN connects |
-| 9 | DAITA | n/a | free toggle once VPN connects |
-| 10 | Multihop | n/a | optional |
+| # | Item | How |
+|---|---|---|
+| 1 | Full-disk encryption | BitLocker or VeraCrypt. Everything else is theatre if the disk is readable. |
+| 2 | Browser encrypted DNS | `Bulkhead.ps1 -Configure` — sets `dns_over_https.mode = secure` |
+| 3 | ECH / encrypted SNI | nothing to enable; it follows automatically from #2 |
+| 4 | LLMNR, mDNS, multi-homed DNS off | `Bulkhead.ps1 -Harden -Apply` |
+| 5 | VPN + kill switch | your provider's client |
+| 6 | Post-quantum tunnel | free toggle in the VPN client |
+| 7 | DAITA | free toggle in the VPN client |
+| 8 | Email aliasing | SimpleLogin / addy.io — the biggest identity win available |
+| 9 | Multihop | optional; splits jurisdiction, costs latency |
 
-Items 1–3 are done. Item 4–5 is one double-click. Items 8–10 unlock the moment your
-tunnel comes up.
+Items 2–4 are free and work without a VPN. Items 5–7 need one. Item 8 has nothing to do with
+this tool and is probably the highest-leverage thing on the page after #1.

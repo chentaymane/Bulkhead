@@ -1,200 +1,209 @@
 # Bulkhead
 
-*Four sealed lanes. A breach in one doesn't sink the ship.*
+**Four sealed browsing lanes. A breach in one doesn't sink the ship.**
 
-> Maximum privacy **and** never getting banned are not the same goal. This plan gets you both
-> by refusing to chase them in the same browser.
+```
+  ██████╗ ██╗   ██╗██╗     ██╗  ██╗██╗  ██╗███████╗ █████╗ ██████╗
+  ██╔══██╗██║   ██║██║     ██║ ██╔╝██║  ██║██╔════╝██╔══██╗██╔══██╗
+  ██████╔╝██║   ██║██║     █████╔╝ ███████║█████╗  ███████║██║  ██║
+  ██╔══██╗██║   ██║██║     ██╔═██╗ ██╔══██║██╔══╝  ██╔══██║██║  ██║
+  ██████╔╝╚██████╔╝███████╗██║  ██╗██║  ██║███████╗██║  ██║██████╔╝
+  ╚═════╝  ╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═════╝
+```
 
-A bulkhead is the watertight wall inside a ship's hull: flood one compartment and the rest stay
-dry, so the ship stays up. That is the whole architecture here — four isolated browsing lanes
-that never share a profile, a cookie jar, a fingerprint, or an identity, so a compromise in one
-can't reach the others.
+A privacy toolkit for Windows that separates **anonymity** from **not getting banned** — because
+they are different goals, and chasing both in one browser is why people fail at both.
 
-## The core problem
+One PowerShell script: leak checks, browser hardening, OS hardening, encrypted DNS, fresh
+identities per launch, and a four-lane architecture that stops them contaminating each other.
 
-You asked for everything: IP, MAC, WebGL, all of it — without getting banned. Those two
-requirements pull in opposite directions, and that tension is the whole design problem:
+A bulkhead is the watertight wall inside a ship's hull — flood one compartment and the rest stay
+dry. That's the architecture.
+
+---
+
+## Why this exists
+
+Most privacy guides tell you to spoof everything. That advice gets you banned.
 
 | Goal | Wants you to look… |
 |---|---|
-| **Privacy from tracking** | unlinkable — either identical to a huge crowd, or different every session |
-| **Not getting banned** | unremarkable — a coherent, boring, reputable, *consistent* human |
+| **Privacy from tracking** | unlinkable — identical to a huge crowd, or different every session |
+| **Not getting banned** | unremarkable — a coherent, boring, consistent human |
 
-A browser that lies about everything is **more** likely to be banned, not less. Every modern
-anti-bot stack (Cloudflare, DataDome, Akamai, Imperva, F5) scores ~40 signals across three
-layers and looks for **contradictions**. A Chrome user-agent riding a Firefox TLS handshake is
-a louder alarm than no spoofing at all. The bans come from *incoherence*, not from privacy.
+Modern anti-bot stacks (Cloudflare, DataDome, Akamai, Imperva, F5) score roughly **40 signals
+across three layers** and look for **contradictions**. A Chrome user-agent riding a Firefox TLS
+handshake is a louder alarm than no spoofing at all.
 
-## The resolution: compartmentalize, don't disguise
+**Bans come from incoherence, not from privacy.**
 
-Do not build one super-browser. Build four environments with different jobs, and never cross
-the streams.
+A user-agent switcher changes one string and leaves behind eight Client-Hint headers, your JA4
+TLS fingerprint, your HTTP/2 frame order, your fonts and your speech-synthesis voices — all
+still telling the truth. You didn't become anonymous. You became *suspicious*.
 
+Bulkhead's answer is **compartmentalization, not disguise**: four environments with different
+jobs that never share a profile, a cookie jar, a fingerprint, or an identity.
+
+## The four lanes
+
+| | Lane 1 — Identity | Lane 2 — Daily | Lane 3 — Anonymous | Lane 4 — Maximum |
+|---|---|---|---|---|
+| **For** | bank, government, work | shopping, social, forums | research, reading | serious threat models |
+| **Browser** | stock Edge / Firefox | Brave (or Firefox + arkenfox) | Mullvad Browser | Tails / Whonix / Qubes |
+| **Fingerprint** | **real — spoof nothing** | hardened, coherent, stable | identical to all users | Tor + VM isolation |
+| **IP** | home or one fixed exit | one sticky exit, your country | any exit, rotate freely | Tor |
+| **Ban risk** | ~zero | low | CAPTCHAs, by design | high friction |
+
+**Lane 1 has almost no privacy, deliberately.** Those sites already know who you are; spoofing
+only triggers fraud review. Its privacy comes from *isolation* — it touches nothing else, so
+nothing else can be correlated back to your legal identity.
+
+**Lane 3's rule is: change nothing.** Mullvad and Tor Browser protect you by making every user
+byte-identical. Install one extension or resize the window and you become the single most
+identifiable person on the network, inside a browser that advertises "this user cares about
+privacy." Customizing it is strictly worse than not using it.
+
+## Quick start
+
+**Requirements**
+
+- Windows 10 or 11
+- PowerShell 5.1 (built in) or PowerShell 7+
+- [Brave](https://brave.com/download/) for Lane 2, [Mullvad Browser](https://mullvad.net/en/browser) for Lane 3 — the script installs both via `winget`
+- A VPN for Lanes 2–3 (any reputable provider)
+
+**Install**
+
+```bash
+git clone https://github.com/YOUR-USERNAME/bulkhead.git
 ```
-┌─ LANE 1 ── IDENTITY ────────────────────────────────────────────────┐
-│ Bank, government, work, anything KYC'd, anything with your real name │
-│ Browser: stock Firefox or Edge, near-zero modification              │
-│ IP: home connection, or ONE consistent VPN exit, forever            │
-│ Fingerprint: REAL. Do not spoof anything.                           │
-│ Privacy comes from ISOLATION — this profile touches nothing else.   │
-│ Ban risk: ~zero. These sites already know who you are.              │
-└─────────────────────────────────────────────────────────────────────┘
 
-┌─ LANE 2 ── DAILY ───────────────────────────────────────────────────┐
-│ Shopping, forums, social, news, pseudonymous logins                 │
-│ Browser: Firefox + arkenfox (tuned for compat) — or Brave           │
-│ IP: one sticky VPN exit in YOUR real country/city                   │
-│ Fingerprint: hardened but internally coherent, stable per identity  │
-│ Ban risk: low. This is where "modify a browser" actually lives.     │
-└─────────────────────────────────────────────────────────────────────┘
+No build step, no dependencies. Two files do the work: `Bulkhead.ps1` and `BULKHEAD.cmd`.
 
-┌─ LANE 3 ── ANONYMOUS ───────────────────────────────────────────────┐
-│ Research, reading, anything you want unlinked from you              │
-│ Browser: Mullvad Browser + VPN  (or Tor Browser for maximum)        │
-│ IP: VPN, rotating exits fine — or Tor                               │
-│ Fingerprint: IDENTICAL to every other user of that browser          │
-│ RULE: never log into a Lane 1 or Lane 2 identity here. Ever.        │
-│ Ban risk: moderate — accept some CAPTCHAs as the cost.              │
-└─────────────────────────────────────────────────────────────────────┘
-```
+**Run**
 
-```
-┌─ LANE 4 ── MAXIMUM ─────────────────────────────────────────────────┐
-│ Serious threat model: journalism, whistleblowing, hostile research  │
-│ Not a browser — an OS: Tails / Whonix / Qubes-Whonix                │
-│ Tor, PLUS the isolation plain Tor Browser doesn't have              │
-│ Build only if you can say who you're hiding from in one sentence.   │
-└─────────────────────────────────────────────────────────────────────┘
-```
+Double-click `BULKHEAD.cmd`, or:
 
-**The counterintuitive rule that matters most:** in Lane 3, *do not customize anything*. No
-extensions, no theme, no window resize, no settings changes. Mullvad and Tor Browser protect
-you by making every user byte-identical. The moment you personalize one, you leave the crowd
-and become the single most identifiable person on the network.
-
-## What actually leaks (four layers)
-
-| Layer | Vectors | Covered in |
-|---|---|---|
-| **L0 Behavior** | mouse curvature, scroll cadence, keystroke timing, session rhythm | [antipatterns.md](docs/antipatterns.md) |
-| **L1 Network** | IP + reputation + geo, DNS, WebRTC, IPv6, **TLS/JA4**, HTTP/2 frame order, TCP/IP stack | [network/](network/README.md) |
-| **L2 Machine** | **MAC**, hostname, Wi-Fi probes, clock skew, GPU, OS telemetry | [Bulkhead.ps1](Bulkhead.ps1) `-Harden` |
-| **L3 Browser** | canvas, **WebGL**, **WebGPU**, audio, fonts, screen, timezone, UA-CH, speech voices, +30 more | [vector-reference.md](docs/vector-reference.md) |
-
-### About the MAC address — an important correction
-
-**Your MAC address never reaches a website.** It is a layer-2 identifier that is stripped and
-replaced at the very first router hop. No site has ever seen it, and no site ever will.
-
-It still matters, just to a different audience: your router, your ISP's equipment, every Wi-Fi
-access point in range (your device broadcasts probe requests even when not connected), captive
-portals, and network administrators. That's a real tracking surface — especially for physical
-location history — and the plan covers it. But it is not a web-fingerprinting vector, and any
-guide that sells you "MAC spoofing to avoid website bans" is selling you nothing.
-
-In practice your **hostname** leaks more than your MAC on a local network (DHCP option 12,
-mDNS, LLMNR, NetBIOS all broadcast it, and it's often literally `CHENT-LAPTOP`). Both are
-handled in the hardening script.
-
-## Run it
-
-**One script does everything.** Double-click `BULKHEAD.cmd`, or:
-
-```
+```bash
 powershell -ExecutionPolicy Bypass -File ".\Bulkhead.ps1"
 ```
 
-| | |
+First run: press `I` to install missing browsers, `H` to harden Windows, then `2` to browse.
+
+## Usage
+
+| Command | What it does |
 |---|---|
-| `BULKHEAD.cmd` | double-click — checks everything, then opens the browser |
-| `BULKHEAD.cmd menu` | the full menu: lanes, audit, harden, VPN, install |
-| `Bulkhead.ps1 -Audit` | read-only audit — disk, DNS, ECH, leaks |
+| `BULKHEAD.cmd` | check everything, then open the browser |
+| `BULKHEAD.cmd menu` | full menu |
+| `Bulkhead.ps1 -Auto` | same as double-clicking |
+| `Bulkhead.ps1 -Lane 2` | launch a lane directly (`1`–`4`) |
+| `Bulkhead.ps1 -Audit` | read-only audit: disk, DNS, ECH, leaks |
+| `Bulkhead.ps1 -Configure` | rebuild the Lane 2 profile and identity template |
 | `Bulkhead.ps1 -Harden -Apply` | OS hardening (self-elevates) |
 | `Bulkhead.ps1 -Revert -Apply` | undo the hardening |
 
-It runs **unelevated on purpose** — browsers must never launch as administrator.
-The only part needing admin (OS hardening) opens its own elevated window from
-the menu, and everything it changes is recorded to `revert-state.json` so it can
-be undone.
+**Menu keys:** `1`–`4` lanes · `V` VPN app · `A` audit · `H` harden · `C` configure · `I` install · `U` undo · `R` re-check · `Q` quit
 
-It refuses to open Lanes 2 and 3 while the tunnel is down, so you can't browse
-"privately" over your real IP by accident.
+### Elevation
 
-### Identity mode
+Bulkhead runs **unelevated on purpose** — browsers must never launch as administrator. Only OS
+hardening needs admin, and it spawns its own elevated child process. Nothing else asks for UAC.
 
-`$Config.IdentityMode` near the top of `Bulkhead.ps1`:
+Every registry change is recorded to `revert-state.json`, so `-Revert -Apply` undoes all of it.
+
+### Identity modes
+
+Set `$Config.IdentityMode` near the top of `Bulkhead.ps1`:
 
 | Mode | Behavior |
 |---|---|
 | `Fresh` *(default)* | **New identity every launch.** A clean profile is stamped from a configured template; the previous one is deleted. No cookies, no history, no logins. |
 | `Persistent` | One profile kept forever. Logins and history survive. Fingerprint randomization still reseeds each launch. |
 
-**Fresh mode does not change your IP.** Without a VPN it buys very little — sites
-link you by IP in one step. It also means zero history, which reads as automation
-([antipattern #12](docs/antipatterns.md)), so expect more CAPTCHAs. Lane 3 does
-this natively *and* gives you a uniform fingerprint, which Fresh mode can't.
+> **Fresh mode does not change your IP.** Without a VPN it buys very little — sites link you by
+> IP in one step. Zero history also reads as automation, so expect more CAPTCHAs. Lane 3 does
+> this natively *and* gives you a uniform fingerprint, which Fresh mode can't.
 
-Anything you want to survive a launch must go in the **template**
-(`%LOCALAPPDATA%\Bulkhead\brave-template`), not in a session, or it dies with it.
+Anything that must survive a launch belongs in the **template**
+(`%LOCALAPPDATA%\Bulkhead\brave-template`), not in a session.
 
-## Start here
+## What it actually configures
 
-1. **[docs/threat-model.md](docs/threat-model.md)** — decide who you're actually hiding from. Ten minutes that saves you from doing the wrong work.
-2. **[docs/coherence-matrix.md](docs/coherence-matrix.md)** — the anti-ban engine. The single most important file here.
-3. **[lanes/lane1-identity.md](lanes/lane1-identity.md)** → **[lane2-daily.md](lanes/lane2-daily.md)** → **[lane3-anonymous.md](lanes/lane3-anonymous.md)** — build them in this order. **[lane4-maximum.md](lanes/lane4-maximum.md)** only if the threat model demands it.
-4. **[network/README.md](network/README.md)** — IP, DNS, WireGuard, kill switch, TLS fingerprint.
-5. **`Bulkhead.ps1 -Harden`** — OS layer. Dry-run by default; read it before you run it.
-6. **[testing/CHECKLIST.md](testing/CHECKLIST.md)** — prove it works. Do not skip.
+| Layer | Handled |
+|---|---|
+| **Network** | WebRTC sealed, IPv6 leak check, DNS leak paths, VPN + route verification, JA4 awareness |
+| **DNS** | browser-level DoH (`secure` mode, Quad9) — which also enables **ECH / encrypted SNI** |
+| **OS** | LLMNR, mDNS, NetBIOS, multi-homed DNS resolution, telemetry, advertising ID, hostname, MAC guidance |
+| **Browser** | WebRTC policy, farbling left on Brave's Standard, telemetry off, autofill off, per-launch identities |
+| **Not touched** | user-agent, canvas, WebGL — spoofing these breaks coherence. See [antipatterns](docs/antipatterns.md). |
 
-## Going further — and where the room actually is
+### Two things worth knowing
 
-> **Your browser layer is already near its safe maximum. Every remaining gain is BELOW it
-> (network, OS, hardware) or ABOVE it (identity, payment, behavior).**
+**Your MAC address never reaches a website.** It's a layer-2 identifier, stripped at the first
+router hop. It matters for Wi-Fi access points and captive portals — which Bulkhead covers — but
+any guide selling "MAC spoofing to avoid website bans" is selling you nothing. Your **hostname**
+leaks more on a local network, via DHCP option 12, mDNS and NetBIOS.
 
-Adding more browser spoofing from here makes you *more* detectable and *more* banned. So the
-upgrade path routes around the browser entirely — and none of it raises ban risk:
+**JA4/TLS, HTTP/2 frame order and your TCP/IP stack cannot be changed from a browser.** They're
+emitted before your JavaScript exists. This is exactly why Bulkhead says *be a real browser and
+don't lie about which one it is* — a hardened Firefox has a Firefox JA4, which is true, so
+nothing contradicts.
 
-- **[docs/technology-stack.md](docs/technology-stack.md)** — every available technology by layer, with a *ban risk* column
-- **[docs/beyond-tor.md](docs/beyond-tor.md)** — what "better than Tor" honestly means, and the setup that achieves it
-- **[network/advanced.md](network/advanced.md)** — ECH, oblivious DNS, post-quantum tunnels, DAITA, multihop, obfuscation
-- **[lanes/lane4-maximum.md](lanes/lane4-maximum.md)** — Tails / Whonix / Qubes-Whonix
+## Verification
 
-Audit where you stand:
+The metric that predicts bans is not uniqueness — it's **detected lies**.
 
-```bash
-powershell -ExecutionPolicy Bypass -File ".Bulkhead.ps1 -Audit"
-```
+Run [CreepJS](https://abrahamjuliot.github.io/creepjs/) and read the *lies* section. **Target
+zero, in every lane.** A common fingerprint with zero lies beats a rare one with contradictions
+every time.
 
-Two things most people miss: **full-disk encryption** (everything else is theatre if your laptop
-is taken) and **email aliasing** (your address is a stronger cross-site key than any
-fingerprint — it's exact and permanent).
+Full gauntlet in [testing/CHECKLIST.md](testing/CHECKLIST.md): CreepJS, JA4 vs claimed browser,
+Client-Hint consistency, WebGL/WebGPU agreement, WebRTC, DNS, IPv6, and a "does it actually
+work" pass.
 
-## The one metric that predicts bans
+## Documentation
 
-Forget "uniqueness score." Run [CreepJS](https://abrahamjuliot.github.io/creepjs/) and look at
-**"lies detected."** That number is what anti-bot systems are actually computing. A browser
-with a common fingerprint and zero detected lies sails through everything. A browser with a
-rare fingerprint and twelve detected lies gets challenged on every request.
+| | |
+|---|---|
+| [docs/threat-model.md](docs/threat-model.md) | decide who you're hiding from before building anything |
+| [docs/coherence-matrix.md](docs/coherence-matrix.md) | **the anti-ban engine** — start here |
+| [docs/vector-reference.md](docs/vector-reference.md) | every fingerprinting vector, per lane |
+| [docs/antipatterns.md](docs/antipatterns.md) | 15 popular "privacy tips" that get you banned |
+| [docs/technology-stack.md](docs/technology-stack.md) | every technology, with a ban-risk column |
+| [docs/beyond-tor.md](docs/beyond-tor.md) | what "better than Tor" honestly means |
+| [lanes/](lanes/) | per-lane build guides + an arkenfox override file |
+| [network/](network/) | IP strategy, ECH, oblivious DNS, post-quantum, DAITA, WireGuard |
+| [testing/CHECKLIST.md](testing/CHECKLIST.md) | the verification gauntlet |
 
-**Target: lies = 0.** Even in Lane 3.
+## Scope and limitations
 
-## Build order, realistically
+Bulkhead protects **your own browsing** from commercial tracking, fingerprinting and profiling.
+"Staying unbanned" here means not tripping bot heuristics as a legitimate human user. The
+compartmentalization model is deliberately the opposite of multi-accounting, and this is not a
+tool for evading bans you've earned.
 
-| Phase | Work | Time |
-|---|---|---|
-| 1 | Threat model + read coherence matrix | 30 min |
-| 2 | VPN + DNS + WebRTC/IPv6 leak seal, verified | 1 h |
-| 3 | Lane 1 profile (stock, isolated) | 20 min |
-| 4 | Lane 2 (arkenfox + overrides, tuned until sites work) | 2 h |
-| 5 | Lane 3 (Mullvad Browser, unmodified) | 10 min |
-| 6 | Windows hardening script (MAC, hostname, telemetry) | 30 min |
-| 7 | Full verification gauntlet | 1 h |
+Be honest with yourself about what it can't do:
 
-Lane 5 takes ten minutes precisely because you don't touch it. That's the point.
+- **Logging in de-anonymizes you.** No fingerprint defense survives typing your own username.
+- **A VPN does not make you anonymous.** It moves the observer from your ISP to a company you chose.
+- **Nothing here defends a compromised endpoint.** If there's malware on the machine, every layer below is theatre.
+- **Your writing style is a fingerprint.** Stylometry is real and untouched by any of this.
+- **Fingerprinting changes constantly.** WebGPU was the notable 2026 arrival. This is maintenance, not a one-time build.
 
----
+## Contributing
 
-*Scope note: this is a plan for protecting your own browsing from commercial tracking,
-fingerprinting, and profiling. Staying unbanned here means not tripping bot heuristics as a
-legitimate human user — it isn't a guide to evading bans you've actually earned, and the
-compartmentalization model is deliberately the opposite of multi-accounting.*
+Issues and pull requests welcome. Useful contributions:
+
+- Non-Windows ports (the architecture is OS-agnostic; the script isn't)
+- Firefox/arkenfox parity with the Brave path
+- New fingerprinting vectors for the reference
+- Corrections — **especially** to claims that have gone stale
+
+Please verify behavioral claims against a real browser before submitting. Several bugs in this
+project were found only by writing a setting, relaunching, and reading it back — browsers
+silently discard settings they don't recognize, so writing one is not proof it applied.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
