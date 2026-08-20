@@ -108,6 +108,17 @@ powershell -ExecutionPolicy Bypass -File ".\Start-Bulkhead.ps1"
 It refuses to open Lanes 2 and 3 while the tunnel is down, so you can't browse "privately" over
 your real IP by accident. `-Lane 3` skips the menu.
 
+**Two files, two jobs:**
+
+| | |
+|---|---|
+| **`RUN.cmd`** | everyday use — checks everything, opens the browser. No admin needed. |
+| **`HARDEN.cmd`** | one time — closes the OS-layer gaps. Asks for admin (UAC), shows a dry run first, then asks before changing anything. |
+
+`HARDEN.cmd` needs administrator because mDNS, NetBIOS and multi-homed DNS are machine-wide
+settings. It shows you exactly what it will change before it changes it, and everything is
+recorded to `scripts\revert-state.json` so `Revert-Hardening.ps1 -Apply` can undo all of it.
+
 Menu keys worth knowing: `I` installs missing browsers via winget · `F` explains fingerprint
 rotation · `T` runs the leak test · `H` dry-runs the Windows hardening.
 

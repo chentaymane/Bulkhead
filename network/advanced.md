@@ -62,9 +62,30 @@ asked. Neither can build your profile alone.
 `network.trr.mode = 5` in Firefox (already in the overrides) so the browser doesn't run a second
 resolver behind your back.
 
-**Without a VPN** (your situation today): enable Windows DoH —
-Settings → Network → adapter → DNS server assignment → Manual → **DNS over HTTPS: On**.
-Good resolvers: Quad9 `9.9.9.9`, Cloudflare `1.1.1.1`, Mullvad DNS.
+**Windows 10 has no DoH client.** The `*-DnsClientDohServerAddress` cmdlets and the
+*DNS over HTTPS* toggle in Settings are **Windows 11 only** — on Windows 10 (any build, 22H2
+included) there is no OS-level encrypted DNS to turn on. Don't go looking for it.
+
+So on Windows 10 encrypted DNS comes from one of two places:
+
+| Source | When |
+|---|---|
+| **The browser** | always — and it's what Chromium uses for ECH |
+| The VPN tunnel | once a VPN is connected, it resolves inside the tunnel |
+
+**Browser DoH is already configured** by `scripts\Configure-Brave.ps1`:
+
+```
+dns_over_https.mode      = secure
+dns_over_https.templates = https://dns.quad9.net/dns-query
+```
+
+`secure` means DoH-only — no plaintext fallback, which is what ECH needs to work reliably. The
+one downside: captive portals (hotel and café Wi-Fi sign-in pages) can fail to resolve until you
+temporarily switch to `automatic`.
+
+Other good resolvers if you'd rather not use Quad9: `https://cloudflare-dns.com/dns-query`,
+`https://dns.mullvad.net/dns-query`.
 
 **Still fix this either way:** Windows *Smart Multi-Homed Name Resolution* sends DNS out every
 interface in parallel — the classic way queries escape a VPN. `scripts\Harden-Windows.ps1`
@@ -141,15 +162,16 @@ Where you stand and what to do, in order:
 
 | # | Item | Your status | Action |
 |---|---|---|---|
-| 1 | Full-disk encryption | check with `Test-Advanced.ps1` | **highest priority** |
-| 2 | Multi-homed DNS off | ❌ not set | run `Harden-Windows.ps1 -Apply` |
-| 3 | mDNS off | ❌ not set | same |
-| 4 | Encrypted DNS | none (no VPN yet) | enable Windows DoH now |
-| 5 | ECH | check flag | enable in Brave, needs #4 |
-| 6 | VPN + kill switch | ❌ none | when you get an account |
-| 7 | Post-quantum | n/a | toggle when VPN exists |
-| 8 | DAITA | n/a | toggle when VPN exists |
-| 9 | Multihop | n/a | optional |
+| 1 | Browser encrypted DNS | ✅ done | `dns_over_https.mode = secure`, Quad9 |
+| 2 | ECH | ✅ active | on by default + browser DoH present |
+| 3 | LLMNR off | ✅ done | |
+| 4 | mDNS off | ❌ not set | **double-click `HARDEN.cmd`** |
+| 5 | Multi-homed DNS off | ❌ not set | same run |
+| 6 | Full-disk encryption | ❓ unchecked | run `Test-Advanced.ps1` elevated |
+| 7 | VPN + kill switch | ❌ none | Mullvad installed, needs your account |
+| 8 | Post-quantum | n/a | free toggle once VPN connects |
+| 9 | DAITA | n/a | free toggle once VPN connects |
+| 10 | Multihop | n/a | optional |
 
-Items 2–5 are free and available to you **today, without a VPN**. Do those now — they're the
-difference between "hardened browser" and "hardened system".
+Items 1–3 are done. Item 4–5 is one double-click. Items 8–10 unlock the moment your
+tunnel comes up.

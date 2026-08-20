@@ -109,16 +109,40 @@ try {
         if (Test-Path $k) { $dohActive = $true }
     }
 } catch { }
-if ($dohActive) { Item 'OK' 'Encrypted DNS (DoH)' 'configured on an active adapter' }
-else { Item 'MISS' 'Encrypted DNS (DoH)' 'not configured' `
-       'Settings > Network > adapter > DNS server assignment > Manual > DNS over HTTPS: On (Quad9 9.9.9.9). REQUIRED for ECH.' }
+$osDohSupported = [bool](Get-Command Get-DnsClientDohServerAddress -ErrorAction SilentlyContinue)
+if ($dohActive) {
+    Item 'OK' 'OS encrypted DNS (DoH)' 'configured on an active adapter'
+} elseif (-not $osDohSupported) {
+    # Windows 10 has no DoH client at all -- it is a Windows 11 feature. Do not
+    # report this as a failure the user can fix; route them to the browser.
+    Item 'INFO' 'OS encrypted DNS (DoH)' 'not supported on this Windows build'
+    Write-Host "        Windows 10 has no native DoH client (Windows 11 only)." -ForegroundColor DarkGray
+    Write-Host "        Encrypted DNS comes from the browser or the VPN instead." -ForegroundColor DarkGray
+} else {
+    Item 'MISS' 'OS encrypted DNS (DoH)' 'not configured' `
+         'Settings > Network > adapter > DNS server assignment > Manual > DNS over HTTPS: On.'
+}
+
+# Browser-level DoH -- on Windows 10 this is the one that matters, and it is
+# what Chromium uses to fetch ECH keys.
+$braveDoh = $null
+$blsPath = Join-Path $env:LOCALAPPDATA 'Bulkhead\brave-lane2\Local State'
+if (Test-Path $blsPath) {
+    try { $braveDoh = (Get-Content $blsPath -Raw | ConvertFrom-Json).dns_over_https.mode } catch { }
+}
+if ($braveDoh -in 'secure','automatic') {
+    Item 'OK' 'Browser encrypted DNS' "Brave DoH mode = $braveDoh"
+} else {
+    Item 'MISS' 'Browser encrypted DNS' 'Brave DoH off' `
+         'Run scripts\Configure-Brave.ps1 -- it sets dns_over_https.mode = secure. This is what enables ECH.'
+}
 
 # The leak paths
 $dnsPol = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient'
 foreach ($c in @(
-    @{N='EnableMulticast';            W=0; L='LLMNR disabled'; F='Run Harden-Windows.ps1 -Apply (LLMNR broadcasts your queries to the LAN).'}
-    @{N='EnableMDNS';                 W=0; L='mDNS disabled';  F='Run Harden-Windows.ps1 -Apply (mDNS advertises this device to the LAN).'}
-    @{N='DisableSmartNameResolution'; W=1; L='Multi-homed DNS off'; F='Run Harden-Windows.ps1 -Apply -- this is the classic Windows VPN DNS leak.'}
+    @{N='EnableMulticast';            W=0; L='LLMNR disabled'; F='Double-click HARDEN.cmd (LLMNR broadcasts your queries to the LAN).'}
+    @{N='EnableMDNS';                 W=0; L='mDNS disabled';  F='Double-click HARDEN.cmd (mDNS advertises this device to the LAN).'}
+    @{N='DisableSmartNameResolution'; W=1; L='Multi-homed DNS off'; F='Double-click HARDEN.cmd -- closes the classic Windows VPN DNS leak.'}
 )) {
     $v = $null
     if (Test-Path $dnsPol) { try { $v = (Get-ItemProperty $dnsPol -Name $c.N -EA Stop).($c.N) } catch {} }
@@ -136,11 +160,16 @@ Section "ECH (Encrypted Client Hello)"
 # decides whether it WORKS is encrypted DNS.
 Item 'OK' 'ECH support' 'on by default (flag removed upstream)'
 
-if ($dohActive) {
-    Item 'OK' 'ECH prerequisite (DoH)' 'encrypted DNS active'
+# Chromium resolves ECH keys through its OWN secure-DNS stack, so the browser
+# setting is the one that gates ECH -- not the OS resolver.
+if ($braveDoh -in 'secure','automatic') {
+    Item 'OK' 'ECH prerequisite (DoH)' "browser DoH = $braveDoh"
+} elseif ($dohActive) {
+    Item 'PART' 'ECH prerequisite (DoH)' 'OS DoH only -- browser DoH is what ECH uses' `
+         'Run scripts\Configure-Brave.ps1 to set browser-level DoH.'
 } else {
     Item 'MISS' 'ECH prerequisite (DoH)' 'plaintext DNS -> ECH silently inactive' `
-         'Enable DoH (see above). ECH keys arrive via DNS HTTPS/SVCB records, so with plaintext DNS your SNI stays in the clear and nothing warns you.'
+         'Run scripts\Configure-Brave.ps1. ECH keys arrive via DNS HTTPS/SVCB records, so with plaintext DNS your SNI stays in the clear and nothing warns you.'
 }
 
 Write-Host "        Only a live check proves it. In Brave, open:" -ForegroundColor DarkGray

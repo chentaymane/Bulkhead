@@ -563,7 +563,7 @@ function Invoke-Auto {
         $v = $null
         if (Test-Path $c.P) { try { $v = (Get-ItemProperty $c.P -Name $c.N -EA Stop).($c.N) } catch {} }
         if ($v -eq $c.W) { Write-Row 'OK' $c.L "= $v" 'Green'; $hardened++ }
-        else { Write-Row 'TODO' $c.L "not set -- run option H" 'Yellow' }
+        else { Write-Row 'TODO' $c.L "not set -- run HARDEN.cmd" 'Yellow' }
     }
 
     # --- 1b. advanced layer (compact -- full detail in Test-Advanced.ps1) ---
@@ -576,13 +576,21 @@ function Invoke-Auto {
             if (Test-Path $k) { $dohActive = $true }
         }
     } catch { }
-    if ($dohActive) { Write-Row 'OK' 'Encrypted DNS (DoH)' 'active' 'Green' }
-    else { Write-Row 'TODO' 'Encrypted DNS (DoH)' 'off -- required for ECH' 'Yellow' }
+    # Windows 10 has no DoH client, so the browser's own secure DNS is what
+    # matters here -- and it is also what Chromium uses to fetch ECH keys.
+    $braveDoh = $null
+    $bls = Join-Path $Config.BraveDataDir 'Local State'
+    if (Test-Path $bls) {
+        try { $braveDoh = (Get-Content $bls -Raw | ConvertFrom-Json).dns_over_https.mode } catch { }
+    }
+    if ($braveDoh -in 'secure','automatic') { Write-Row 'OK' 'Encrypted DNS (browser)' "mode = $braveDoh" 'Green' }
+    elseif ($dohActive) { Write-Row 'OK' 'Encrypted DNS (OS)' 'active' 'Green' }
+    else { Write-Row 'TODO' 'Encrypted DNS' 'run scripts\Configure-Brave.ps1' 'Yellow' }
 
     # ECH is on by default in Brave (the flag was removed upstream in M122).
     # Whether it actually functions depends entirely on encrypted DNS.
-    if ($dohActive) { Write-Row 'OK' 'ECH (encrypted SNI)' 'on by default, DoH present' 'Green' }
-    else { Write-Row 'TODO' 'ECH (encrypted SNI)' 'inactive -- needs DoH, see above' 'Yellow' }
+    if ($braveDoh -in 'secure','automatic') { Write-Row 'OK' 'ECH (encrypted SNI)' 'on by default, DoH present' 'Green' }
+    else { Write-Row 'TODO' 'ECH (encrypted SNI)' 'inactive -- needs browser DoH' 'Yellow' }
 
     Write-Host "          Full audit: option A, or scripts\Test-Advanced.ps1" -ForegroundColor DarkGray
 

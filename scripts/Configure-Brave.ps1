@@ -140,6 +140,23 @@ $LocalStateSettings = [ordered]@{
     'p3a.enabled'                        = $false   # Brave's privacy-preserving analytics
     'brave.stats.reporting_enabled'      = $false   # usage ping
     'user_experience_metrics.reporting_enabled' = $false
+
+    # ---- Encrypted DNS, in the browser ---------------------------------
+    # Windows 10 has NO native DoH client -- the cmdlets and the Settings
+    # toggle are Windows 11 only. So encrypted DNS has to come from the
+    # browser (or from the VPN tunnel once one is connected).
+    #
+    # This also unlocks ECH: Chromium looks up ECH keys through its OWN
+    # secure-DNS stack, so browser-level DoH is what actually turns
+    # encrypted SNI on -- not an OS setting.
+    #
+    # mode 'secure'    = DoH only. Strongest, and what ECH needs to work
+    #                    reliably. Downside: captive portals (hotel/cafe
+    #                    Wi-Fi sign-in pages) can fail to resolve until you
+    #                    switch to 'automatic' temporarily.
+    # mode 'automatic' = opportunistic upgrade, falls back to plaintext.
+    'dns_over_https.mode'      = 'secure'
+    'dns_over_https.templates' = 'https://dns.quad9.net/dns-query'
 }
 
 # Chromium flags live in Local State as an array. Currently EMPTY on purpose.
@@ -211,6 +228,18 @@ if (-not $SkipVerify) {
         $want = $PrefSettings[$k]
         if ("$v" -eq "$want") { Write-Host ("    [KEPT] {0,-40} {1}" -f $k, $v) -ForegroundColor Green; $kept++ }
         else { Write-Host ("    [LOST] {0,-40} {1} (wanted {2})" -f $k, $v, $want) -ForegroundColor Red; $lost++ }
+    }
+
+    # Local State too -- Brave discards what it doesn't recognise there as
+    # well, which is exactly how the dead ECH flag was caught.
+    if (Test-Path $LsPath) {
+        $lsAfter = Get-Content $LsPath -Raw | ConvertFrom-Json
+        foreach ($k in $LocalStateSettings.Keys) {
+            $v = Get-JsonPath $lsAfter $k
+            $want = $LocalStateSettings[$k]
+            if ("$v" -eq "$want") { Write-Host ("    [KEPT] {0,-40} {1}" -f $k, $v) -ForegroundColor Green; $kept++ }
+            else { Write-Host ("    [LOST] {0,-40} {1} (wanted {2})" -f $k, $v, $want) -ForegroundColor Red; $lost++ }
+        }
     }
     Write-Host ""
     Write-Host "    $kept kept, $lost discarded by Brave" -ForegroundColor $(if ($lost) { 'Yellow' } else { 'Green' })
