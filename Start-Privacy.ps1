@@ -66,6 +66,12 @@ $Config = @{
 
     # Brave gets its own user-data-dir for hard isolation
     BraveDataDir    = Join-Path $env:LOCALAPPDATA 'PrivacyPlan\brave-lane2'
+
+    # On the FIRST launch of a freshly configured Lane 2 profile, open three
+    # verification tabs (CreepJS, WebRTC leak, ipleak) so the setup proves
+    # itself instead of just claiming to be hardened. Happens once, not every
+    # launch. Set to $false to never open them.
+    OpenVerifyTabsOnFirstRun = $true
 }
 # ===========================================================================
 
@@ -464,7 +470,9 @@ function Invoke-Auto {
     }
 
     # --- 5. launch ----------------------------------------------------------
-    $firstRun = -not $configured
+    # firstRun is true only when the profile was unconfigured at the top of this
+    # function -- i.e. we just built it. Normal launches open no tabs at all.
+    $firstRun = (-not $configured) -and $Config.OpenVerifyTabsOnFirstRun
     if ($Browsers.Brave) {
         New-Item -ItemType Directory -Path $Config.BraveDataDir -Force | Out-Null
         # NB: not $args -- that is a PowerShell automatic variable.
