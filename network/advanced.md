@@ -22,9 +22,15 @@ Fastly and Akamai support it at origin.
 1. **Encrypted DNS must be on.** ECH keys are delivered in DNS HTTPS/SVCB records. Plaintext DNS = no ECH, with no warning.
 2. **The destination must publish ECH config.** Many still don't. Clients fall back to cleartext SNI silently.
 
-**Enable in Brave/Chromium:** `brave://flags` → search *Encrypted ClientHello* → **Enabled**.
-**Enable in Firefox:** `about:config` → `network.dns.echconfig.enabled` = `true` and
-`network.dns.http3_echconfig.enabled` = `true`. Requires DoH mode 2 or 3.
+**There is nothing to enable in Brave.** The `encrypted-client-hello` flag expired in Chromium
+M122 and was removed — ECH graduated to **on by default**, and Brave shipped it by default ahead
+of upstream Chromium. If you go looking for that flag and don't find it, that means it's already
+on, not missing. (Writing the flag into `Local State` by hand doesn't work either — Brave
+discards it on next launch. Verified.)
+
+**Firefox:** `network.dns.echconfig.enabled` = `true`, requires DoH mode 2 or 3.
+
+So the only thing standing between you and encrypted SNI is **requirement 1: turn on DoH.**
 
 **Verify:** [crypto.cloudflare.com/cdn-cgi/trace](https://crypto.cloudflare.com/cdn-cgi/trace) —
 look for `sni=encrypted`. If it says `plaintext`, ECH isn't active.

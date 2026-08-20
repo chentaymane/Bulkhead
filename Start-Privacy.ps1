@@ -67,6 +67,28 @@ $Config = @{
     # Brave gets its own user-data-dir for hard isolation
     BraveDataDir    = Join-Path $env:LOCALAPPDATA 'PrivacyPlan\brave-lane2'
 
+    # ---- IDENTITY MODE ----------------------------------------------------
+    # 'Persistent' : one profile, kept forever. Logins/cookies/history survive.
+    #                Fingerprint randomization still reseeds every launch.
+    #                Best for a daily driver with pseudonymous accounts.
+    #
+    # 'Fresh'      : NEW IDENTITY EVERY LAUNCH. A clean profile is built from a
+    #                configured template each time; the previous one is deleted.
+    #                No cookies, no history, no logins carried over.
+    #
+    #                READ THIS: a fresh profile does NOT change your IP. Without
+    #                a VPN this buys you almost nothing -- sites link you by IP
+    #                in one step. It also means zero history, which reads as
+    #                automation (docs/antipatterns.md #12), so expect more
+    #                CAPTCHAs. Lane 3 (Mullvad Browser) does this natively and
+    #                better, because it also gives you a uniform fingerprint.
+    IdentityMode    = 'Fresh'
+
+    # Where the pristine configured template lives, and where per-launch
+    # sessions are created. Only used when IdentityMode = 'Fresh'.
+    BraveTemplate   = Join-Path $env:LOCALAPPDATA 'PrivacyPlan\brave-template'
+    BraveSessions   = Join-Path $env:LOCALAPPDATA 'PrivacyPlan\sessions'
+
     # On the FIRST launch of a freshly configured Lane 2 profile, open three
     # verification tabs (CreepJS, WebRTC leak, ipleak) so the setup proves
     # itself instead of just claiming to be hardened. Happens once, not every
@@ -278,9 +300,25 @@ function Start-Lane2 {
             else { Write-Host "  Missing: $cfg" -ForegroundColor Red }
         }
 
-        New-Item -ItemType Directory -Path $Config.BraveDataDir -Force | Out-Null
+        # Honour IdentityMode so the menu and RUN.cmd behave identically.
+        $profileDir = $Config.BraveDataDir
+        if ($Config.IdentityMode -eq 'Fresh') {
+            try {
+                $tpl = Initialize-Template
+                $profileDir = New-FreshIdentity -Template $tpl -SessionRoot $Config.BraveSessions
+                Write-Host "  Fresh identity: $(Split-Path $profileDir -Leaf) (previous session deleted)" -ForegroundColor Magenta
+                if (-not $VpnUp) {
+                    Write-Host "  NOTE: your IP is unchanged -- no tunnel. Not really a new identity." -ForegroundColor Red
+                }
+            } catch {
+                Write-Host "  Fresh identity failed ($($_.Exception.Message)); using persistent profile." -ForegroundColor Red
+                $profileDir = $Config.BraveDataDir
+            }
+        }
+
+        New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
         Start-Process $Browsers.Brave -ArgumentList @(
-            "--user-data-dir=$($Config.BraveDataDir)", '--no-default-browser-check'
+            "--user-data-dir=$profileDir", '--no-default-browser-check'
         )
         Write-Host "  Launched Brave (Lane 2)." -ForegroundColor Green
         Write-Host "  WebRTC sealed. Fingerprinting on Standard (farbling) -- correct for this lane." -ForegroundColor DarkGray
@@ -395,6 +433,68 @@ function Ensure-FirefoxProfile {
     Write-Host "  Created." -ForegroundColor Green
 }
 
+# ---------- fresh-identity profiles ----------------------------------------
+# Rather than reconfiguring Brave from scratch every launch (slow, and it would
+# re-trigger the first-run experience), we keep ONE configured template and
+# stamp a clean session profile from it. Only the config files are copied --
+# Brave regenerates caches and databases itself, so the session starts with no
+# cookies, no history and no logins.
+function New-FreshIdentity {
+    param([string]$Template, [string]$SessionRoot)
+
+    if (-not (Test-Path (Join-Path $Template 'Default\Preferences'))) {
+        throw "No configured template at $Template"
+    }
+
+    # Delete previous sessions. This is the point of the mode -- and it also
+    # means no forensic residue is left sitting on disk.
+    if (Test-Path $SessionRoot) {
+        Get-ChildItem $SessionRoot -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+            try { Remove-Item $_.FullName -Recurse -Force -ErrorAction Stop }
+            catch { Write-Host "    could not remove old session $($_.Name) (in use?)" -ForegroundColor DarkGray }
+        }
+    }
+
+    $session = Join-Path $SessionRoot ("s{0}" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+    New-Item -ItemType Directory -Path (Join-Path $session 'Default') -Force | Out-Null
+
+    # First Run sentinel: without it Brave shows onboarding on every launch.
+    Set-Content -Path (Join-Path $session 'First Run') -Value '' -NoNewline
+
+    Copy-Item (Join-Path $Template 'Default\Preferences') (Join-Path $session 'Default\Preferences') -Force
+    if (Test-Path (Join-Path $Template 'Local State')) {
+        Copy-Item (Join-Path $Template 'Local State') (Join-Path $session 'Local State') -Force
+    }
+
+    return $session
+}
+
+# Ensure a configured template exists, building it from the persistent profile
+# or from scratch if this is the first Fresh-mode run.
+function Initialize-Template {
+    $tpl = $Config.BraveTemplate
+    if (Test-Path (Join-Path $tpl 'Default\Preferences')) { return $tpl }
+
+    Write-Host "  Building the identity template (one time)..." -ForegroundColor Yellow
+    New-Item -ItemType Directory -Path (Join-Path $tpl 'Default') -Force | Out-Null
+
+    $src = Join-Path $Config.BraveDataDir 'Default\Preferences'
+    if (Test-Path $src) {
+        # Reuse the already-configured persistent profile as the template.
+        Set-Content -Path (Join-Path $tpl 'First Run') -Value '' -NoNewline
+        Copy-Item $src (Join-Path $tpl 'Default\Preferences') -Force
+        $ls = Join-Path $Config.BraveDataDir 'Local State'
+        if (Test-Path $ls) { Copy-Item $ls (Join-Path $tpl 'Local State') -Force }
+        Write-Host "  Template built from the existing Lane 2 profile." -ForegroundColor Green
+    } else {
+        # Nothing to copy -- configure a fresh one.
+        $cfg = Join-Path $Root 'scripts\Configure-Brave.ps1'
+        if (Test-Path $cfg) { & $cfg -DataDir $tpl -SkipVerify | Out-Null }
+        else { throw "Cannot build template: $cfg missing" }
+    }
+    return $tpl
+}
+
 # ---------- VPN control -----------------------------------------------------
 function Start-Vpn {
     Write-Head "VPN"
@@ -479,16 +579,10 @@ function Invoke-Auto {
     if ($dohActive) { Write-Row 'OK' 'Encrypted DNS (DoH)' 'active' 'Green' }
     else { Write-Row 'TODO' 'Encrypted DNS (DoH)' 'off -- required for ECH' 'Yellow' }
 
-    $echOn = $false
-    $bls = Join-Path $Config.BraveDataDir 'Local State'
-    if (Test-Path $bls) {
-        try {
-            $l = Get-Content $bls -Raw | ConvertFrom-Json
-            $echOn = (($l.browser.enabled_labs_experiments -join ',') -match 'encrypted-client-hello')
-        } catch { }
-    }
-    if ($echOn) { Write-Row 'OK' 'ECH (encrypted SNI)' 'enabled' 'Green' }
-    else { Write-Row 'TODO' 'ECH (encrypted SNI)' 'brave://flags -> Encrypted ClientHello' 'Yellow' }
+    # ECH is on by default in Brave (the flag was removed upstream in M122).
+    # Whether it actually functions depends entirely on encrypted DNS.
+    if ($dohActive) { Write-Row 'OK' 'ECH (encrypted SNI)' 'on by default, DoH present' 'Green' }
+    else { Write-Row 'TODO' 'ECH (encrypted SNI)' 'inactive -- needs DoH, see above' 'Yellow' }
 
     Write-Host "          Full audit: option A, or scripts\Test-Advanced.ps1" -ForegroundColor DarkGray
 
@@ -549,9 +643,34 @@ function Invoke-Auto {
     # function -- i.e. we just built it. Normal launches open no tabs at all.
     $firstRun = (-not $configured) -and $Config.OpenVerifyTabsOnFirstRun
     if ($Browsers.Brave) {
-        New-Item -ItemType Directory -Path $Config.BraveDataDir -Force | Out-Null
+
+        # Resolve which profile directory to launch.
+        if ($Config.IdentityMode -eq 'Fresh') {
+            Write-Head "Identity"
+            try {
+                $tpl = Initialize-Template
+                $profileDir = New-FreshIdentity -Template $tpl -SessionRoot $Config.BraveSessions
+                Write-Row 'NEW' 'Fresh identity' (Split-Path $profileDir -Leaf) 'Magenta'
+                Write-Host "          No cookies, no history, no logins carried over." -ForegroundColor DarkGray
+                Write-Host "          Previous session deleted." -ForegroundColor DarkGray
+                if (-not $State.VpnUp) {
+                    Write-Host ""
+                    Write-Host "          WARNING: your IP did NOT change -- there is no tunnel." -ForegroundColor Red
+                    Write-Host "          A fresh profile behind the same IP is not a new identity." -ForegroundColor Red
+                    Write-Host "          Connect the VPN (option V) for this mode to mean anything." -ForegroundColor Red
+                }
+                $firstRun = $false   # a fresh profile every launch must not spam verification tabs
+            } catch {
+                Write-Row 'ERR' 'Fresh identity' "$($_.Exception.Message) -- using persistent profile" 'Red'
+                $profileDir = $Config.BraveDataDir
+            }
+        } else {
+            $profileDir = $Config.BraveDataDir
+        }
+
+        New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
         # NB: not $args -- that is a PowerShell automatic variable.
-        $braveArgs = @("--user-data-dir=$($Config.BraveDataDir)", '--no-default-browser-check')
+        $braveArgs = @("--user-data-dir=$profileDir", '--no-default-browser-check')
         if ($firstRun) {
             # First run: open the verification pages so the setup proves itself.
             $braveArgs += @(

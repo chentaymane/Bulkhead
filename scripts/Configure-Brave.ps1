@@ -142,6 +142,19 @@ $LocalStateSettings = [ordered]@{
     'user_experience_metrics.reporting_enabled' = $false
 }
 
+# Chromium flags live in Local State as an array. Currently EMPTY on purpose.
+#
+# ECH is NOT set here. The 'encrypted-client-hello' flag expired in Chromium
+# M122 and was removed -- ECH graduated to on-by-default, and Brave shipped it
+# by default earlier than upstream Chromium did. Writing that flag makes Brave
+# silently discard it on next launch (verified empirically).
+#
+# ECH's real dependency is ENCRYPTED DNS: the keys arrive in DNS HTTPS/SVCB
+# records, so with plaintext DNS it falls back to cleartext SNI without any
+# warning. Enable DoH at the OS or VPN level, then confirm at
+# https://crypto.cloudflare.com/cdn-cgi/trace -- look for sni=encrypted.
+$LabsFlags = @()
+
 # --- apply: Preferences ---------------------------------------------------
 Write-Host "  Preferences" -ForegroundColor Cyan
 $prefs = Get-Content $PrefsPath -Raw | ConvertFrom-Json
@@ -164,6 +177,15 @@ if (Test-Path $LsPath) {
         Set-JsonPath $ls $k $LocalStateSettings[$k]
         Write-Host ("    {0,-40} {1}  ->  {2}" -f $k, $before, $LocalStateSettings[$k]) -ForegroundColor DarkGray
     }
+
+    # Merge the labs flags rather than overwrite, so anything the user set by
+    # hand survives.
+    $existing = @()
+    try { if ($ls.browser.enabled_labs_experiments) { $existing = @($ls.browser.enabled_labs_experiments) } } catch { }
+    $merged = @($existing + $LabsFlags | Select-Object -Unique)
+    Set-JsonPath $ls 'browser.enabled_labs_experiments' $merged
+    Write-Host ("    {0,-40} {1}" -f 'browser.enabled_labs_experiments', ($merged -join ', ')) -ForegroundColor DarkGray
+
     $ls | ConvertTo-Json -Depth 100 -Compress | Set-Content $LsPath -Encoding UTF8 -NoNewline
     Write-Host "    written" -ForegroundColor Green
 }

@@ -104,6 +104,23 @@ your real IP by accident. `-Lane 3` skips the menu.
 Menu keys worth knowing: `I` installs missing browsers via winget · `F` explains fingerprint
 rotation · `T` runs the leak test · `H` dry-runs the Windows hardening.
 
+### Identity mode
+
+`$Config.IdentityMode` at the top of the launcher controls what carries over between launches:
+
+| Mode | Behavior |
+|---|---|
+| `Fresh` *(current)* | **New identity every launch.** A clean profile is stamped from a configured template; the previous session is deleted. No cookies, no history, no logins. |
+| `Persistent` | One profile kept forever. Logins and history survive. Fingerprint randomization still reseeds each launch. |
+
+**Fresh mode does not change your IP.** Without a VPN it buys you very little — sites link you by
+IP in one step. It also means zero browsing history, which reads as automation
+([antipattern #12](docs/antipatterns.md)), so expect more CAPTCHAs. Lane 3 does this natively
+*and* gives you a uniform fingerprint, which Fresh mode can't.
+
+Anything you want to survive — a bookmark, a `brave://flags` setting — has to go in the
+**template** (`%LOCALAPPDATA%\PrivacyPlan\brave-template`), not in a session, or it dies with it.
+
 Lane 2 self-configures on first launch — if the Brave profile hasn't been hardened yet, the
 launcher runs [scripts/Configure-Brave.ps1](scripts/Configure-Brave.ps1) before opening it, so
 the lane is never used unhardened.

@@ -130,21 +130,21 @@ Section "ECH (Encrypted Client Hello)"
 # =========================================================================
 # ECH encrypts the SNI -- the last cleartext hostname field in HTTPS.
 
-$braveLocalState = Join-Path $env:LOCALAPPDATA 'PrivacyPlan\brave-lane2\Local State'
-if (Test-Path $braveLocalState) {
-    try {
-        $ls = Get-Content $braveLocalState -Raw | ConvertFrom-Json
-        $labs = $ls.browser.enabled_labs_experiments
-        if ($labs -and ($labs -join ',') -match 'encrypted-client-hello') {
-            Item 'OK' 'ECH (Brave Lane 2)' 'flag enabled'
-        } else {
-            Item 'MISS' 'ECH (Brave Lane 2)' 'flag not enabled' `
-                 'brave://flags > search "Encrypted ClientHello" > Enabled. Needs encrypted DNS to work at all.'
-        }
-    } catch { Item 'PART' 'ECH (Brave Lane 2)' 'could not read Local State' }
-} else { Item 'INFO' 'ECH (Brave Lane 2)' 'Lane 2 profile not found' }
+# There is nothing to switch on. The 'encrypted-client-hello' flag expired in
+# Chromium M122 and was removed -- ECH is on by default now, and Brave shipped
+# it by default ahead of upstream. So ECH support is a given; what actually
+# decides whether it WORKS is encrypted DNS.
+Item 'OK' 'ECH support' 'on by default (flag removed upstream)'
 
-Write-Host "        Verify live at https://crypto.cloudflare.com/cdn-cgi/trace" -ForegroundColor DarkGray
+if ($dohActive) {
+    Item 'OK' 'ECH prerequisite (DoH)' 'encrypted DNS active'
+} else {
+    Item 'MISS' 'ECH prerequisite (DoH)' 'plaintext DNS -> ECH silently inactive' `
+         'Enable DoH (see above). ECH keys arrive via DNS HTTPS/SVCB records, so with plaintext DNS your SNI stays in the clear and nothing warns you.'
+}
+
+Write-Host "        Only a live check proves it. In Brave, open:" -ForegroundColor DarkGray
+Write-Host "          https://crypto.cloudflare.com/cdn-cgi/trace" -ForegroundColor Cyan
 Write-Host "        Look for sni=encrypted. If it says plaintext, ECH is not active." -ForegroundColor DarkGray
 
 # =========================================================================
