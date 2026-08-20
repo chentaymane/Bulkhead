@@ -90,8 +90,14 @@ powershell -ExecutionPolicy Bypass -File ".\Start-Privacy.ps1"
 ```
 
 It refuses to open Lanes 2 and 3 while the tunnel is down, so you can't browse "privately" over
-your real IP by accident. `-Lane 3` skips the menu. Press `F` in the menu for the
-fingerprint-rotation explainer.
+your real IP by accident. `-Lane 3` skips the menu.
+
+Menu keys worth knowing: `I` installs missing browsers via winget · `F` explains fingerprint
+rotation · `T` runs the leak test · `H` dry-runs the Windows hardening.
+
+Lane 2 self-configures on first launch — if the Brave profile hasn't been hardened yet, the
+launcher runs [scripts/Configure-Brave.ps1](scripts/Configure-Brave.ps1) before opening it, so
+the lane is never used unhardened.
 
 Edit the `$Config` block at the top once: your expected exit country and whether Lane 2 is
 Firefox or Brave.

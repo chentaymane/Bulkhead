@@ -10,6 +10,11 @@
     This script LAUNCHES things and READS network state. It does not change any
     system setting -- that is scripts\Harden-Windows.ps1, which you run yourself.
 
+.PARAMETER Auto
+    One-button mode. Runs every check, fixes what it can (configures the Lane 2
+    profile if needed), then opens the browser. No menu, no prompts.
+    This is what RUN.cmd calls.
+
 .PARAMETER Lane
     Launch a lane directly and skip the menu: 1, 2, or 3.
 
@@ -36,6 +41,7 @@
 [CmdletBinding()]
 param(
     [ValidateSet('1','2','3')][string]$Lane,
+    [switch]$Auto,
     [switch]$SkipPreflight,
     [switch]$Force
 )
@@ -52,7 +58,7 @@ $Config = @{
     ExpectedCountry = ''
 
     # Lane 2 browser: 'Firefox' or 'Brave'
-    Lane2Browser    = 'Firefox'
+    Lane2Browser    = 'Brave'
 
     # Firefox profile names (created on first use if missing)
     Lane1Profile    = 'lane1-identity'
@@ -117,6 +123,9 @@ function Write-Head { param([string]$T)
 function Write-Row { param([string]$S,[string]$L,[string]$D,[string]$C='Gray')
     Write-Host ("  {0,-7} {1,-26} {2}" -f "[$S]", $L, $D) -ForegroundColor $C
 }
+# Clear-Host throws when there is no real console handle (redirected output,
+# scheduled task, CI). Never let a cosmetic call kill the run.
+function Clear-Screen { try { Clear-Host } catch { Write-Host "" } }
 
 # ---------- preflight -------------------------------------------------------
 function Invoke-Preflight {
@@ -227,10 +236,28 @@ function Start-Lane2 {
     if (-not (Assert-Tunnel 'Lane 2' $VpnUp)) { Write-Host "  Cancelled." -ForegroundColor Yellow; return }
 
     if ($Config.Lane2Browser -eq 'Brave' -and $Browsers.Brave) {
+        # Auto-configure on first use so the lane is never launched unhardened.
+        $prefs = Join-Path $Config.BraveDataDir 'Default\Preferences'
+        $configured = $false
+        if (Test-Path $prefs) {
+            try {
+                $j = Get-Content $prefs -Raw | ConvertFrom-Json
+                $configured = ($j.webrtc.ip_handling_policy -eq 'disable_non_proxied_udp')
+            } catch { $configured = $false }
+        }
+        if (-not $configured) {
+            Write-Host "  Profile not configured yet -- applying Lane 2 settings..." -ForegroundColor Yellow
+            $cfg = Join-Path $Root 'scripts\Configure-Brave.ps1'
+            if (Test-Path $cfg) { & $cfg -DataDir $Config.BraveDataDir -SkipVerify }
+            else { Write-Host "  Missing: $cfg" -ForegroundColor Red }
+        }
+
         New-Item -ItemType Directory -Path $Config.BraveDataDir -Force | Out-Null
-        Start-Process $Browsers.Brave -ArgumentList @("--user-data-dir=$($Config.BraveDataDir)")
+        Start-Process $Browsers.Brave -ArgumentList @(
+            "--user-data-dir=$($Config.BraveDataDir)", '--no-default-browser-check'
+        )
         Write-Host "  Launched Brave (Lane 2)." -ForegroundColor Green
-        Write-Host "  Shields: Aggressive + Strict fingerprinting. WebRTC: disable non-proxied UDP." -ForegroundColor DarkGray
+        Write-Host "  WebRTC sealed. Fingerprinting on Standard (farbling) -- correct for this lane." -ForegroundColor DarkGray
     }
     elseif ($Browsers.Firefox) {
         Ensure-FirefoxProfile $Config.Lane2Profile
@@ -305,6 +332,163 @@ function Ensure-FirefoxProfile {
     Write-Host "  Created." -ForegroundColor Green
 }
 
+# ---------- one-button automatic mode --------------------------------------
+function Invoke-Auto {
+    param($State)
+
+    Write-Host ""
+    Write-Host "  ================================================================" -ForegroundColor DarkCyan
+    Write-Host "   AUTOMATIC RUN -- checking everything, then opening your browser" -ForegroundColor Cyan
+    Write-Host "  ================================================================" -ForegroundColor DarkCyan
+
+    # --- 1. local leak settings (LLMNR / mDNS / multi-homed DNS) ------------
+    Write-Head "Local leak settings"
+    $dnsPol = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient'
+    $checks = @(
+        @{ P=$dnsPol; N='EnableMulticast';            W=0; L='LLMNR disabled' }
+        @{ P=$dnsPol; N='EnableMDNS';                 W=0; L='mDNS disabled' }
+        @{ P=$dnsPol; N='DisableSmartNameResolution'; W=1; L='Multi-homed DNS off' }
+    )
+    $hardened = 0
+    foreach ($c in $checks) {
+        $v = $null
+        if (Test-Path $c.P) { try { $v = (Get-ItemProperty $c.P -Name $c.N -EA Stop).($c.N) } catch {} }
+        if ($v -eq $c.W) { Write-Row 'OK' $c.L "= $v" 'Green'; $hardened++ }
+        else { Write-Row 'TODO' $c.L "not set -- run option H" 'Yellow' }
+    }
+
+    # --- 2. browsers --------------------------------------------------------
+    Write-Head "Browsers"
+    foreach ($k in 'Edge','Brave','Firefox','Mullvad','Tor') {
+        if ($Browsers[$k]) { Write-Row 'OK' $k 'installed' 'Green' }
+        else { Write-Row '--' $k 'not installed' 'DarkGray' }
+    }
+
+    # --- 3. Lane 2 profile --------------------------------------------------
+    Write-Head "Lane 2 profile"
+    $prefs = Join-Path $Config.BraveDataDir 'Default\Preferences'
+    $configured = $false
+    if (Test-Path $prefs) {
+        try {
+            $j = Get-Content $prefs -Raw | ConvertFrom-Json
+            $configured = ($j.webrtc.ip_handling_policy -eq 'disable_non_proxied_udp')
+        } catch { $configured = $false }
+    }
+    if ($configured) {
+        Write-Row 'OK' 'Brave Lane 2' 'configured (WebRTC sealed)' 'Green'
+    } else {
+        Write-Row 'FIX' 'Brave Lane 2' 'not configured -- applying now' 'Yellow'
+        $cfg = Join-Path $Root 'scripts\Configure-Brave.ps1'
+        if (Test-Path $cfg) { & $cfg -DataDir $Config.BraveDataDir -SkipVerify | Out-Null; Write-Row 'OK' 'Brave Lane 2' 'configured' 'Green' }
+        else { Write-Row 'ERR' 'Brave Lane 2' "missing $cfg" 'Red' }
+    }
+
+    # --- 4. verdict ---------------------------------------------------------
+    Write-Head "Verdict"
+    if ($State.VpnUp) {
+        Write-Host "  Tunnel up. Launching Lane 2." -ForegroundColor Green
+    } else {
+        Write-Host ""
+        Write-Host "  +--------------------------------------------------------------+" -ForegroundColor Red
+        Write-Host "  |  NO VPN -- your real IP is visible to every site you open.    |" -ForegroundColor Red
+        Write-Host "  |  Fingerprint protection is ON, but your address is not hidden.|" -ForegroundColor Red
+        Write-Host "  +--------------------------------------------------------------+" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "  Opening anyway: hardened Brave with no VPN is still better than" -ForegroundColor Yellow
+        Write-Host "  your normal browser with no VPN. But the plan is not complete" -ForegroundColor Yellow
+        Write-Host "  until a tunnel is up. Press I in the menu to install Mullvad VPN." -ForegroundColor Yellow
+        Write-Host ""
+    }
+
+    # --- 5. launch ----------------------------------------------------------
+    $firstRun = -not $configured
+    if ($Browsers.Brave) {
+        New-Item -ItemType Directory -Path $Config.BraveDataDir -Force | Out-Null
+        # NB: not $args -- that is a PowerShell automatic variable.
+        $braveArgs = @("--user-data-dir=$($Config.BraveDataDir)", '--no-default-browser-check')
+        if ($firstRun) {
+            # First run: open the verification pages so the setup proves itself.
+            $braveArgs += @(
+                'https://abrahamjuliot.github.io/creepjs/'
+                'https://browserleaks.com/webrtc'
+                'https://ipleak.net'
+            )
+        }
+        Start-Process $Browsers.Brave -ArgumentList $braveArgs
+        Write-Host "  Brave launched (Lane 2)." -ForegroundColor Green
+        if ($firstRun) {
+            Write-Host ""
+            Write-Host "  First run -- three verification tabs opened:" -ForegroundColor Cyan
+            Write-Host "    CreepJS      -> 'lies detected' must be 0" -ForegroundColor Gray
+            Write-Host "    WebRTC       -> no 192.168.x / 10.x candidates" -ForegroundColor Gray
+            Write-Host "    ipleak.net   -> confirms what sites actually see" -ForegroundColor Gray
+        }
+    }
+    elseif ($Browsers.Edge) {
+        Write-Host "  Brave not installed. Press I in the menu to install it." -ForegroundColor Yellow
+        Write-Host "  Opening Edge (Lane 1) instead." -ForegroundColor Yellow
+        Start-Lane1
+    }
+    else { Write-Host "  No usable browser found." -ForegroundColor Red }
+
+    Write-Host ""
+    Write-Host "  Done. Full menu: .\Start-Privacy.ps1" -ForegroundColor DarkGray
+    Write-Host ""
+}
+
+# ---------- auto-install ----------------------------------------------------
+function Install-Missing {
+    Write-Head "Install missing browsers"
+
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+        Write-Host "  winget not found. Install browsers manually:" -ForegroundColor Red
+        foreach ($k in 'Firefox','Brave','Mullvad','Tor') { Write-Host "    $k  $($InstallLinks[$k])" -ForegroundColor Gray }
+        return
+    }
+
+    $pkgs = [ordered]@{
+        'Brave (Lane 2)'          = 'Brave.Brave'
+        'Firefox (Lane 2 alt)'    = 'Mozilla.Firefox'
+        'Mullvad Browser (Lane 3)'= 'MullvadVPN.MullvadBrowser'
+        'Mullvad VPN (network)'   = 'MullvadVPN.MullvadVPN'
+    }
+
+    $i = 0; $map = @{}
+    foreach ($name in $pkgs.Keys) {
+        $i++
+        $id = $pkgs[$name]
+        $have = switch -Wildcard ($id) {
+            'Brave.Brave'               { [bool]$Browsers.Brave }
+            'Mozilla.Firefox'           { [bool]$Browsers.Firefox }
+            'MullvadVPN.MullvadBrowser' { [bool]$Browsers.Mullvad }
+            default                     { $null }
+        }
+        $tag = if ($have -eq $true) { 'installed' } elseif ($null -eq $have) { '?' } else { 'missing' }
+        $col = if ($have -eq $true) { 'Green' } else { 'Yellow' }
+        Write-Host ("   {0}  {1,-26} {2,-28} {3}" -f $i, $name, $id, $tag) -ForegroundColor $col
+        $map["$i"] = @{ Name = $name; Id = $id }
+    }
+
+    Write-Host ""
+    Write-Host "  Mullvad VPN is free to install but needs a paid account you create yourself." -ForegroundColor DarkGray
+    Write-Host ""
+    $sel = (Read-Host "  Numbers to install (e.g. 1,3) or Enter to cancel").Trim()
+    if (-not $sel) { Write-Host "  Cancelled." -ForegroundColor Yellow; return }
+
+    foreach ($n in ($sel -split '[,\s]+' | Where-Object { $_ })) {
+        if (-not $map.ContainsKey($n)) { Write-Host "  Skipping '$n'." -ForegroundColor Red; continue }
+        $pkg = $map[$n]
+        Write-Host ""
+        Write-Host "  Installing $($pkg.Name) [$($pkg.Id)]..." -ForegroundColor Cyan
+        winget install --id $pkg.Id --exact --silent --accept-package-agreements --accept-source-agreements
+        if ($LASTEXITCODE -eq 0) { Write-Host "  $($pkg.Name) installed." -ForegroundColor Green }
+        else { Write-Host "  winget exited $LASTEXITCODE for $($pkg.Name)." -ForegroundColor Yellow }
+    }
+
+    Write-Host ""
+    Write-Host "  Restart this script so it picks up the new installs." -ForegroundColor Yellow
+}
+
 # ---------- info panels -----------------------------------------------------
 function Show-Rotation {
     Write-Head "Does the fingerprint change every launch?"
@@ -354,6 +538,7 @@ function Show-Menu {
     Write-Host "   2   Lane 2  Daily       shopping / social      hardened, coherent" -ForegroundColor Yellow
     Write-Host "   3   Lane 3  Anonymous   research / reading     uniform crowd" -ForegroundColor Magenta
     Write-Host ""
+    Write-Host "   I   Install missing browsers  (winget)" -ForegroundColor Gray
     Write-Host "   T   Run full leak test        (scripts\Test-Leaks.ps1)" -ForegroundColor Gray
     Write-Host "   H   Windows hardening, dry run (scripts\Harden-Windows.ps1)" -ForegroundColor Gray
     Write-Host "   F   Fingerprint rotation -- does it change every launch?" -ForegroundColor Gray
@@ -367,7 +552,7 @@ function Show-Menu {
 # ===========================================================================
 #  MAIN
 # ===========================================================================
-Clear-Host
+Clear-Screen
 Write-Host ""
 Write-Host "  THREE-LANE PRIVACY PLAN" -ForegroundColor White
 Write-Host "  $Root" -ForegroundColor DarkGray
@@ -375,6 +560,14 @@ Write-Host "  $Root" -ForegroundColor DarkGray
 $State = if ($SkipPreflight) {
     @{ VpnUp = $true; Ip = $null; Country = $null; Tz = (Get-TimeZone).Id }
 } else { Invoke-Preflight }
+
+if ($Auto) {
+    Invoke-Auto -State $State
+    # Keep the window open when double-clicked. Harmless if stdin is redirected
+    # or PowerShell is in NonInteractive mode -- never let the pause fail the run.
+    try { Read-Host "  Press Enter to close" | Out-Null } catch { }
+    return
+}
 
 if ($Lane) {
     switch ($Lane) {
@@ -394,6 +587,7 @@ while ($true) {
         '1' { Start-Lane1 }
         '2' { Start-Lane2 -VpnUp $State.VpnUp }
         '3' { Start-Lane3 -VpnUp $State.VpnUp }
+        'I' { Install-Missing }
         'T' {
             $t = Join-Path $Root 'scripts\Test-Leaks.ps1'
             if (Test-Path $t) { & $t } else { Write-Host "  Not found: $t" -ForegroundColor Red }
@@ -420,5 +614,5 @@ while ($true) {
 
     Write-Host ""
     Read-Host "  Press Enter to return to the menu" | Out-Null
-    Clear-Host
+    Clear-Screen
 }

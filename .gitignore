@@ -1,0 +1,21 @@
+# Machine-specific state written by Harden-Windows.ps1 -Apply.
+# Contains your previous registry values and hostname. Local only.
+scripts/revert-state.json
+
+# ---------------------------------------------------------------------------
+# REAL WireGuard configs contain your PRIVATE KEY. Never commit them.
+# The annotated template has placeholders only and IS tracked.
+# ---------------------------------------------------------------------------
+network/*.conf
+!network/wireguard-template.conf
+
+# Same for any provider config you drop in
+*.wgconf
+*privatekey*
+*.key
+
+# Browser profile data (lives in %LOCALAPPDATA%, but just in case)
+brave-lane2/
+lane*-profile/
+*.sqlite
+*.log
