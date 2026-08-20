@@ -25,7 +25,7 @@
 
 .PARAMETER DataDir
     Brave user-data-dir to configure.
-    Default: %LOCALAPPDATA%\PrivacyPlan\brave-lane2
+    Default: %LOCALAPPDATA%\Bulkhead\brave-lane2
 
 .PARAMETER SkipVerify
     Don't relaunch Brave to confirm the settings stuck. Faster, less certain.
@@ -36,7 +36,7 @@
 
 [CmdletBinding()]
 param(
-    [string]$DataDir = (Join-Path $env:LOCALAPPDATA 'PrivacyPlan\brave-lane2'),
+    [string]$DataDir = (Join-Path $env:LOCALAPPDATA 'Bulkhead\brave-lane2'),
     [switch]$SkipVerify
 )
 

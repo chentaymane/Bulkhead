@@ -1,7 +1,14 @@
-# The Three-Lane Privacy Browser Plan
+# Bulkhead
+
+*Four sealed lanes. A breach in one doesn't sink the ship.*
 
 > Maximum privacy **and** never getting banned are not the same goal. This plan gets you both
 > by refusing to chase them in the same browser.
+
+A bulkhead is the watertight wall inside a ship's hull: flood one compartment and the rest stay
+dry, so the ship stays up. That is the whole architecture here — four isolated browsing lanes
+that never share a profile, a cookie jar, a fingerprint, or an identity, so a compromise in one
+can't reach the others.
 
 ## The core problem
 
@@ -95,7 +102,7 @@ One file drives everything — preflight leak checks, then launches the right br
 right lane:
 
 ```
-powershell -ExecutionPolicy Bypass -File ".\Start-Privacy.ps1"
+powershell -ExecutionPolicy Bypass -File ".\Start-Bulkhead.ps1"
 ```
 
 It refuses to open Lanes 2 and 3 while the tunnel is down, so you can't browse "privately" over
@@ -119,7 +126,7 @@ IP in one step. It also means zero browsing history, which reads as automation
 *and* gives you a uniform fingerprint, which Fresh mode can't.
 
 Anything you want to survive — a bookmark, a `brave://flags` setting — has to go in the
-**template** (`%LOCALAPPDATA%\PrivacyPlan\brave-template`), not in a session, or it dies with it.
+**template** (`%LOCALAPPDATA%\Bulkhead\brave-template`), not in a session, or it dies with it.
 
 Lane 2 self-configures on first launch — if the Brave profile hasn't been hardened yet, the
 launcher runs [scripts/Configure-Brave.ps1](scripts/Configure-Brave.ps1) before opening it, so

@@ -53,9 +53,9 @@ if ($RemoveKillSwitchOnly) {
     Write-Host ""
     Write-Host "  Removing kill-switch firewall rules..." -ForegroundColor Yellow
     $n = 0
-    foreach ($rule in 'PrivacyPlan-KillSwitch-Block',
-                      'PrivacyPlan-KillSwitch-AllowVPN',
-                      'PrivacyPlan-KillSwitch-AllowLAN') {
+    foreach ($rule in 'Bulkhead-KillSwitch-Block',
+                      'Bulkhead-KillSwitch-AllowVPN',
+                      'Bulkhead-KillSwitch-AllowLAN') {
         try {
             Remove-NetFirewallRule -DisplayName $rule -ErrorAction Stop
             Write-Host "    removed: $rule" -ForegroundColor Green
@@ -111,11 +111,11 @@ foreach ($c in $changes) {
         }
 
         'Firewall' {
-            Write-Host "  [$mode] remove firewall rules PrivacyPlan-KillSwitch-*" -ForegroundColor Yellow
+            Write-Host "  [$mode] remove firewall rules Bulkhead-KillSwitch-*" -ForegroundColor Yellow
             if ($Apply) {
-                foreach ($rule in 'PrivacyPlan-KillSwitch-Block',
-                                  'PrivacyPlan-KillSwitch-AllowVPN',
-                                  'PrivacyPlan-KillSwitch-AllowLAN') {
+                foreach ($rule in 'Bulkhead-KillSwitch-Block',
+                                  'Bulkhead-KillSwitch-AllowVPN',
+                                  'Bulkhead-KillSwitch-AllowLAN') {
                     Remove-NetFirewallRule -DisplayName $rule -ErrorAction SilentlyContinue
                 }
             }

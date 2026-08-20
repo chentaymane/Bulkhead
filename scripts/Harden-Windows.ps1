@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Layer-2 / OS hardening for the three-lane privacy browser plan.
+    Layer-2 / OS hardening for Bulkhead.
 
 .DESCRIPTION
     Handles the machine-and-local-network layer that no browser setting can reach:
@@ -276,24 +276,24 @@ if (-not $InstallKillSwitch) {
     Write-Host "    $($vpnAdapter.Name)  [$($vpnAdapter.InterfaceDescription)]" -ForegroundColor Yellow
     Write-Host ""
 
-    Write-Action "Create firewall rule 'PrivacyPlan-KillSwitch-Block' (block all outbound)"
-    Write-Action "Create firewall rule 'PrivacyPlan-KillSwitch-AllowVPN' (allow on VPN iface)"
-    Write-Action "Create firewall rule 'PrivacyPlan-KillSwitch-AllowLAN' (allow RFC1918, for router access)"
+    Write-Action "Create firewall rule 'Bulkhead-KillSwitch-Block' (block all outbound)"
+    Write-Action "Create firewall rule 'Bulkhead-KillSwitch-AllowVPN' (allow on VPN iface)"
+    Write-Action "Create firewall rule 'Bulkhead-KillSwitch-AllowLAN' (allow RFC1918, for router access)"
 
-    $script:Changes += [pscustomobject]@{ Kind='Firewall'; NewValue='PrivacyPlan-KillSwitch-*' }
+    $script:Changes += [pscustomobject]@{ Kind='Firewall'; NewValue='Bulkhead-KillSwitch-*' }
 
     if ($Apply) {
         # Allow rules must exist BEFORE the block rule, or you drop your own session.
-        New-NetFirewallRule -DisplayName 'PrivacyPlan-KillSwitch-AllowVPN' `
+        New-NetFirewallRule -DisplayName 'Bulkhead-KillSwitch-AllowVPN' `
             -Direction Outbound -Action Allow -InterfaceAlias $VpnInterfaceAlias `
             -Profile Any -Enabled True | Out-Null
 
-        New-NetFirewallRule -DisplayName 'PrivacyPlan-KillSwitch-AllowLAN' `
+        New-NetFirewallRule -DisplayName 'Bulkhead-KillSwitch-AllowLAN' `
             -Direction Outbound -Action Allow `
             -RemoteAddress @('192.168.0.0/16','10.0.0.0/8','172.16.0.0/12') `
             -Profile Any -Enabled True | Out-Null
 
-        New-NetFirewallRule -DisplayName 'PrivacyPlan-KillSwitch-Block' `
+        New-NetFirewallRule -DisplayName 'Bulkhead-KillSwitch-Block' `
             -Direction Outbound -Action Block -Profile Any -Enabled True | Out-Null
 
         Write-Host "  Kill switch active. Test it: disconnect the VPN, then try to browse." -ForegroundColor Green

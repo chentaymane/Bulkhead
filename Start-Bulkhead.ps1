@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Single entry point for the three-lane privacy browser plan.
+    Single entry point for Bulkhead -- the four-lane privacy browser plan.
 
 .DESCRIPTION
     Runs preflight leak checks, then launches the right browser in the right
@@ -26,16 +26,16 @@
     Launch Lane 2/3 even if no VPN interface is detected. Prints a warning.
 
 .EXAMPLE
-    .\Start-Privacy.ps1
+    .\Start-Bulkhead.ps1
     Interactive menu with a preflight report.
 
 .EXAMPLE
-    .\Start-Privacy.ps1 -Lane 3
+    .\Start-Bulkhead.ps1 -Lane 3
     Preflight, then straight into the anonymous lane.
 
 .NOTES
     No elevation required. Run with:
-      powershell -ExecutionPolicy Bypass -File ".\Start-Privacy.ps1"
+      powershell -ExecutionPolicy Bypass -File ".\Start-Bulkhead.ps1"
 #>
 
 [CmdletBinding()]
@@ -65,7 +65,7 @@ $Config = @{
     Lane2Profile    = 'lane2-daily'
 
     # Brave gets its own user-data-dir for hard isolation
-    BraveDataDir    = Join-Path $env:LOCALAPPDATA 'PrivacyPlan\brave-lane2'
+    BraveDataDir    = Join-Path $env:LOCALAPPDATA 'Bulkhead\brave-lane2'
 
     # ---- IDENTITY MODE ----------------------------------------------------
     # 'Persistent' : one profile, kept forever. Logins/cookies/history survive.
@@ -86,8 +86,8 @@ $Config = @{
 
     # Where the pristine configured template lives, and where per-launch
     # sessions are created. Only used when IdentityMode = 'Fresh'.
-    BraveTemplate   = Join-Path $env:LOCALAPPDATA 'PrivacyPlan\brave-template'
-    BraveSessions   = Join-Path $env:LOCALAPPDATA 'PrivacyPlan\sessions'
+    BraveTemplate   = Join-Path $env:LOCALAPPDATA 'Bulkhead\brave-template'
+    BraveSessions   = Join-Path $env:LOCALAPPDATA 'Bulkhead\sessions'
 
     # On the FIRST launch of a freshly configured Lane 2 profile, open three
     # verification tabs (CreepJS, WebRTC leak, ipleak) so the setup proves
@@ -272,7 +272,7 @@ function Start-Lane1 {
         Ensure-FirefoxProfile $Config.Lane1Profile
         Start-Process $exe -ArgumentList @('-P', $Config.Lane1Profile)
     } else {
-        $dir = Join-Path $env:LOCALAPPDATA 'PrivacyPlan\edge-lane1'
+        $dir = Join-Path $env:LOCALAPPDATA 'Bulkhead\edge-lane1'
         Start-Process $exe -ArgumentList @("--user-data-dir=$dir")
     }
     Write-Host "  Launched $kind (Lane 1)." -ForegroundColor Green
@@ -697,7 +697,7 @@ function Invoke-Auto {
     else { Write-Host "  No usable browser found." -ForegroundColor Red }
 
     Write-Host ""
-    Write-Host "  Done. Full menu: .\Start-Privacy.ps1" -ForegroundColor DarkGray
+    Write-Host "  Done. Full menu: .\Start-Bulkhead.ps1" -ForegroundColor DarkGray
     Write-Host ""
 }
 
@@ -792,7 +792,7 @@ function Show-Status {
 # ---------- menu ------------------------------------------------------------
 function Show-Menu {
     param($State)
-    Write-Head "Three-Lane Privacy Plan"
+    Write-Head "Bulkhead"
     $vpnTag = if ($State.VpnUp) { "VPN up" } else { "VPN DOWN" }
     $vpnCol = if ($State.VpnUp) { 'Green' } else { 'Red' }
     Write-Host "  Tunnel: " -NoNewline; Write-Host $vpnTag -ForegroundColor $vpnCol -NoNewline
@@ -822,7 +822,7 @@ function Show-Menu {
 # ===========================================================================
 Clear-Screen
 Write-Host ""
-Write-Host "  THREE-LANE PRIVACY PLAN" -ForegroundColor White
+Write-Host "  B U L K H E A D" -ForegroundColor White
 Write-Host "  $Root" -ForegroundColor DarkGray
 
 $State = if ($SkipPreflight) {
