@@ -111,7 +111,29 @@ $Config = @{
     #
     # If you want Tor-like behaviour, 3 is the lane that gives it to you
     # without the ban cost.
-    DefaultLane = 3
+    DefaultLane = 2
+
+    # ---- COOKIE KEYCHAIN ---------------------------------------------------
+    # The honest mechanics, because this is widely misunderstood:
+    #
+    #   * Sites CANNOT read your browsing history. Fabricating fake history
+    #     does nothing -- there is no API that exposes it.
+    #   * Sites can only read cookies THEY set. Invented cookies are invisible.
+    #   * So you cannot make a fresh profile "look used". To a site that has
+    #     never seen you, you are a new visitor -- which is completely normal.
+    #     Millions of real people visit a site for the first time every day.
+    #
+    # What actually causes the endless CAPTCHA loop is losing the site's
+    # CLEARANCE cookie (Cloudflare's cf_clearance and friends). That cookie is
+    # bound to your TLS signature + User-Agent + IP -- none of which change
+    # when Brave reseeds its farbling. So it stays VALID across a fresh
+    # profile, as long as you keep the cookie itself.
+    #
+    # $true  = fresh profile every launch (new fingerprint seed, no history,
+    #          no cache, no saved logins) BUT carry the cookie jar forward, so
+    #          sites you already cleared do not re-challenge you.
+    # $false = carry nothing. Maximum unlinkability, maximum CAPTCHAs.
+    KeepCookies = $true
 
     DataRoot        = Join-Path $env:LOCALAPPDATA 'Bulkhead'
     DohTemplate     = 'https://dns.quad9.net/dns-query'
@@ -122,6 +144,7 @@ $Config.BraveDataDir  = Join-Path $Config.DataRoot 'brave-lane2'
 $Config.BraveTemplate = Join-Path $Config.DataRoot 'brave-template'
 $Config.BraveSessions = Join-Path $Config.DataRoot 'sessions'
 $Config.RevertLog     = Join-Path $Root 'revert-state.json'
+$Config.CookieKeychain = Join-Path $Config.DataRoot 'cookie-keychain.db'
 
 # ============================================================================
 #  CONSOLE
@@ -592,6 +615,9 @@ function New-FreshIdentity {
     $root = $Config.BraveSessions
     New-Item -ItemType Directory -Path $root -Force | Out-Null
 
+    # Rescue the cookie jar before the old session is deleted.
+    Save-CookieKeychain
+
     # Retire old identities. This is the point of the mode, and it also leaves
     # no forensic residue behind.
     #
@@ -620,9 +646,41 @@ function New-FreshIdentity {
     New-Item -ItemType Directory -Path (Join-Path $s 'Default') -Force | Out-Null
     Set-Content -Path (Join-Path $s 'First Run') -Value '' -NoNewline
     Copy-Item (Join-Path $tpl 'Default\Preferences') (Join-Path $s 'Default\Preferences') -Force
+
+    # Local State carries the DPAPI key that encrypts cookie values. Every
+    # session must share it, or a restored cookie jar decrypts to garbage.
     $tls = Join-Path $tpl 'Local State'
     if (Test-Path $tls) { Copy-Item $tls (Join-Path $s 'Local State') -Force }
+
+    # Restore the clearance/session cookies, if we're keeping them.
+    if ($Config.KeepCookies -and (Test-Path $Config.CookieKeychain)) {
+        New-Item -ItemType Directory -Path (Join-Path $s 'Default\Network') -Force | Out-Null
+        Copy-Item $Config.CookieKeychain (Join-Path $s 'Default\Network\Cookies') -Force
+        $script:CookiesRestored = $true
+    } else {
+        $script:CookiesRestored = $false
+    }
     return $s
+}
+
+# Preserve the cookie jar from the session about to be destroyed. Called
+# BEFORE cleanup, because that is the only moment the previous jar still
+# exists. Nothing else in the profile is kept.
+function Save-CookieKeychain {
+    if (-not $Config.KeepCookies) { return }
+    $root = $Config.BraveSessions
+    if (-not (Test-Path $root)) { return }
+    $prev = Get-ChildItem $root -Directory -EA SilentlyContinue | Sort-Object CreationTime -Descending | Select-Object -First 1
+    if (-not $prev) { return }
+    $jar = Join-Path $prev.FullName 'Default\Network\Cookies'
+    if (-not (Test-Path $jar)) { return }
+    try {
+        Copy-Item $jar $Config.CookieKeychain -Force -EA Stop
+        $kb = [Math]::Round((Get-Item $Config.CookieKeychain).Length / 1KB)
+        Write-Row 'OK' 'Cookie keychain' "saved from previous session (${kb} KB)" 'Green'
+    } catch {
+        Write-Row 'WARN' 'Cookie keychain' 'previous jar locked -- not updated' 'Yellow'
+    }
 }
 
 function Resolve-Lane2Profile {
@@ -639,15 +697,20 @@ function Resolve-Lane2Profile {
         }
         return $Config.BraveDataDir
     }
-    Write-Row 'WARN' 'Identity' 'Fresh on a logged-in lane -- raises ban risk' 'Yellow'
-    Write-Note "Set Lane2IdentityMode = 'Persistent' unless you know why you want this."
+    # Fresh identity path. New-FreshIdentity reports the details itself.
     try {
         $p = New-FreshIdentity
         Write-Row 'NEW' 'Fresh identity' (Split-Path $p -Leaf) 'Magenta'
-        if ($script:LastCleanupClean) {
-            Write-Note "No cookies, history or logins carried over. Previous session deleted."
+        if ($script:CookiesRestored) {
+            Write-Note "Clearance cookies carried forward, so sites you already"
+            Write-Note "passed will not re-challenge you. History, cache and the"
+            Write-Note "fingerprint seed are all new."
+        } elseif ($Config.KeepCookies) {
+            Write-Note "No keychain yet -- this is the first run. Cookies from this"
+            Write-Note "session are saved on exit and restored from the next launch on."
         } else {
-            Write-Note "No cookies, history or logins carried over."
+            Write-Note "KeepCookies is off: nothing carried forward. Expect a"
+            Write-Note "challenge on every site that gates on a clearance cookie."
         }
         if (-not $VpnUp) {
             Write-Host ""

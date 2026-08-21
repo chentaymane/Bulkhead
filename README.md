@@ -115,32 +115,49 @@ Every registry change is recorded to `revert-state.json`, so `-Revert -Apply` un
 
 ### Identity modes
 
-**Default: `DefaultLane = 3`.** Every launch is a new identity — nothing is saved, ever.
+**Default: a new identity on every launch, with the clearance carried forward.**
 
-That default is Mullvad Browser, and it's the answer to "I want it like Tor," because it *is*
-the Tor Browser engine. Verified rather than assumed: its profile has **no `places.sqlite` at
-all** — Firefox keeps history in that file, so there is nowhere for history to be written.
+```powershell
+Lane2IdentityMode = 'Fresh'   # new profile every launch
+KeepCookies       = $true     # but carry the cookie jar
+```
 
-The part that matters for staying unbanned: it's **fresh *and* uniform.** Every Mullvad Browser
-user shares one fingerprint, so a brand-new profile is exactly what sites expect there.
+Each launch stamps a clean profile: **new fingerprint seed, no history, no cache, no saved
+logins.** The only thing carried across is the cookie jar.
 
-### Fresh in Lane 2 is a different story
+### Why that combination, and not fake history
 
-| | Setting | Result |
+Three facts worth knowing, because this area is full of bad advice:
+
+- **Websites cannot read your browsing history.** There is no API for it. Injecting fake history to look "used" achieves exactly nothing.
+- **A site can only read cookies it set itself.** Invented cookies are invisible to everyone.
+- **So you cannot make a fresh profile look "already used."** To a site that has never seen you, you are a new visitor — which is entirely normal. Millions of real people are first-time visitors every day.
+
+What actually causes the endless CAPTCHA loop is losing the site's **clearance cookie**
+(Cloudflare's `cf_clearance` and equivalents). That cookie is bound to your **TLS signature +
+User-Agent + IP** — none of which change when Brave reseeds its farbling. So it stays *valid*
+across a fresh profile, provided you keep the cookie.
+
+That's what `KeepCookies` does: fresh identity, minus the re-challenge.
+
+| | `KeepCookies = $true` | `KeepCookies = $false` |
 |---|---|---|
-| **Lane 3** | amnesic by design | fresh **and** uniform → new identity, low suspicion |
-| **Lane 2** | `Lane2IdentityMode = 'Fresh'` | fresh but **rare** → new identity, higher challenge rate |
+| Fingerprint seed | new each launch | new each launch |
+| History / cache | none | none |
+| Clearance cookies | carried → no re-challenge | dropped → challenged everywhere |
+| Cross-session linkability | sites you visited can recognise you | none |
 
-A throwaway *Brave* profile has no cookie age, no history, and a randomized fingerprint. That
-combination is the automation signature — vendors say plainly that a rotating fingerprint with a
-constantly-reset cookie jar scores worse than a stable one. Set `Lane2IdentityMode = 'Persistent'`
-if you'd rather Lane 2 read as a returning user.
+Set it to `$false` for maximum unlinkability and accept the CAPTCHAs. The keychain lives at
+`%LOCALAPPDATA%\Bulkhead\cookie-keychain.db` — delete it any time to start clean.
 
-Either way: **a fresh profile does not change your IP.** Connect the VPN or you're a new identity
-at the same address.
+> **A fresh profile does not change your IP.** Without a VPN you are a new identity at the same
+> address, and sites re-link you in one step.
 
-Run `Bulkhead.ps1 -Audit` and read the **Ban risk** section — it scores identity age, exit
-reputation, geographic coherence and cookie state.
+For a stronger version of the same idea, Lane 3 (Mullvad Browser) is amnesic *and* uniform —
+verified: its profile has **no `places.sqlite` at all**, so there is nowhere for history to be
+written. Set `DefaultLane = 3` to make that the default launch.
+
+Run `Bulkhead.ps1 -Audit` and read the **Ban risk** section.
 
 ## What it actually configures
 
