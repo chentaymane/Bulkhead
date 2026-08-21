@@ -93,8 +93,25 @@ $Config = @{
     #
     # You get "new identity every launch" AND "not banned" -- by putting them
     # in different lanes instead of fighting over one.
-    Lane2IdentityMode = 'Persistent'
+    Lane2IdentityMode = 'Fresh'
     Lane3IdentityMode = 'Fresh'
+
+    # ---- DEFAULT LANE ------------------------------------------------------
+    # Which lane BULKHEAD.cmd opens.
+    #
+    # 3 = Mullvad Browser. This is the real "new identity every launch, like
+    #     Tor" answer: it IS the Tor Browser engine, it is amnesic by design,
+    #     and -- the part that matters -- every user shares one fingerprint.
+    #     Fresh AND uniform. A throwaway profile is what sites expect here, so
+    #     it does not read as automation the way a throwaway Brave profile does.
+    #
+    # 2 = Brave, fresh profile each launch. Also a new identity, but a RARE
+    #     one: no history, no cookies, randomized fingerprint. That combination
+    #     is the automation signature and draws challenges.
+    #
+    # If you want Tor-like behaviour, 3 is the lane that gives it to you
+    # without the ban cost.
+    DefaultLane = 3
 
     DataRoot        = Join-Path $env:LOCALAPPDATA 'Bulkhead'
     DohTemplate     = 'https://dns.quad9.net/dns-query'
@@ -900,6 +917,34 @@ function Invoke-Auto {
         Invoke-ConfigureBrowser -Quiet | Out-Null
     } else {
         Write-Row 'OK' 'Lane 2 profile' 'configured' 'Green'
+    }
+
+    # ---- Lane 3 default: amnesic + uniform, the real Tor-like path ---------
+    if ($Config.DefaultLane -eq 3) {
+        Write-Head "Launch -- Lane 3 (new identity every launch)"
+        $l3 = if ($br.Mullvad) { $br.Mullvad } elseif ($br.Tor) { $br.Tor } else { $null }
+        if ($l3) {
+            $which = if ($br.Mullvad) { 'Mullvad Browser' } else { 'Tor Browser' }
+            Write-Row 'NEW' 'Identity' 'fresh -- nothing is saved, ever' 'Magenta'
+            Write-Note "$which is amnesic by design: no history, no cookies, no"
+            Write-Note "logins survive closing it. Every launch is the first launch."
+            Write-Note "And your fingerprint matches every other user of it, so"
+            Write-Note "'brand new' looks normal here instead of looking automated."
+            if (-not $State.VpnUp) {
+                Write-Host ""
+                Write-Host "          No tunnel -- your real IP is still visible." -ForegroundColor Red
+                Write-Host "          Connect the VPN (menu option V) for a new IP too." -ForegroundColor Red
+            }
+            Start-Process $l3
+            Write-Host ""
+            Write-Host "  $which launched." -ForegroundColor Green
+            Write-Host "  Change NOTHING in it. No extensions, no resize, no settings --" -ForegroundColor Magenta
+            Write-Host "  uniformity IS the protection. Log into nothing from Lane 1 or 2." -ForegroundColor Magenta
+            Write-Host ""
+            return
+        }
+        Write-Row 'MISS' 'Lane 3 browser' 'not installed -- falling back to Lane 2' 'Yellow'
+        Write-Note "Install Mullvad Browser with menu option I for true Tor-like behaviour."
     }
 
     Write-Head "Launch"

@@ -115,29 +115,32 @@ Every registry change is recorded to `revert-state.json`, so `-Revert -Apply` un
 
 ### Identity modes
 
-Set these near the top of `Bulkhead.ps1`. Identity mode is **per lane**, because the lanes have
-opposite jobs:
+**Default: `DefaultLane = 3`.** Every launch is a new identity — nothing is saved, ever.
 
-| | Setting | Why |
+That default is Mullvad Browser, and it's the answer to "I want it like Tor," because it *is*
+the Tor Browser engine. Verified rather than assumed: its profile has **no `places.sqlite` at
+all** — Firefox keeps history in that file, so there is nowhere for history to be written.
+
+The part that matters for staying unbanned: it's **fresh *and* uniform.** Every Mullvad Browser
+user shares one fingerprint, so a brand-new profile is exactly what sites expect there.
+
+### Fresh in Lane 2 is a different story
+
+| | Setting | Result |
 |---|---|---|
-| **Lane 2** (logged in) | `Lane2IdentityMode = 'Persistent'` | Anti-bot systems expect a *returning user*: aged cookies, accumulated history, a stable fingerprint. |
-| **Lane 3** (anonymous) | `Lane3IdentityMode = 'Fresh'` | Nothing is logged in, so discarding the identity every launch is free and correct. |
+| **Lane 3** | amnesic by design | fresh **and** uniform → new identity, low suspicion |
+| **Lane 2** | `Lane2IdentityMode = 'Fresh'` | fresh but **rare** → new identity, higher challenge rate |
 
-> **This is the setting people get wrong, and it's the most common self-inflicted cause of
-> bans.** A brand-new profile on every launch has no cookie age and no history — that is the
-> signature of automation, not of privacy. Combined with a datacenter VPN exit it is close to a
-> textbook bot profile. Vendors state it directly: keep the cookie jar and the fingerprint
-> stable so you present as the same returning user.
->
-> A fresh profile also does **not** change your IP. On a lane where you log in, it costs you
-> heavily and buys you nothing.
+A throwaway *Brave* profile has no cookie age, no history, and a randomized fingerprint. That
+combination is the automation signature — vendors say plainly that a rotating fingerprint with a
+constantly-reset cookie jar scores worse than a stable one. Set `Lane2IdentityMode = 'Persistent'`
+if you'd rather Lane 2 read as a returning user.
 
-You get "new identity every launch" *and* "not banned" by putting them in **different lanes**
-rather than making one setting fight itself. Run `Bulkhead.ps1 -Audit` and read the **Ban risk**
-section — it scores identity age, exit reputation, geographic coherence and cookie state.
+Either way: **a fresh profile does not change your IP.** Connect the VPN or you're a new identity
+at the same address.
 
-Anything that must survive a Lane 3 launch belongs in the **template**
-(`%LOCALAPPDATA%\Bulkhead\brave-template`), not in a session.
+Run `Bulkhead.ps1 -Audit` and read the **Ban risk** section — it scores identity age, exit
+reputation, geographic coherence and cookie state.
 
 ## What it actually configures
 
