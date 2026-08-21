@@ -14,8 +14,9 @@
 A privacy toolkit for Windows that separates **anonymity** from **not getting banned** — because
 they are different goals, and chasing both in one browser is why people fail at both.
 
-One PowerShell script: leak checks, browser hardening, OS hardening, encrypted DNS, fresh
-identities per launch, and a four-lane architecture that stops them contaminating each other.
+One PowerShell script: leak checks, browser hardening, OS hardening, encrypted DNS, per-lane
+identity policy, a ban-risk audit, and a four-lane architecture that stops them contaminating
+each other.
 
 A bulkhead is the watertight wall inside a ship's hull — flood one compartment and the rest stay
 dry. That's the architecture.
@@ -75,7 +76,7 @@ privacy." Customizing it is strictly worse than not using it.
 **Install**
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/bulkhead.git
+git clone https://github.com/chentaymane/Bulkhead.git
 ```
 
 No build step, no dependencies. Two files do the work: `Bulkhead.ps1` and `BULKHEAD.cmd`.
@@ -114,18 +115,28 @@ Every registry change is recorded to `revert-state.json`, so `-Revert -Apply` un
 
 ### Identity modes
 
-Set `$Config.IdentityMode` near the top of `Bulkhead.ps1`:
+Set these near the top of `Bulkhead.ps1`. Identity mode is **per lane**, because the lanes have
+opposite jobs:
 
-| Mode | Behavior |
-|---|---|
-| `Fresh` *(default)* | **New identity every launch.** A clean profile is stamped from a configured template; the previous one is deleted. No cookies, no history, no logins. |
-| `Persistent` | One profile kept forever. Logins and history survive. Fingerprint randomization still reseeds each launch. |
+| | Setting | Why |
+|---|---|---|
+| **Lane 2** (logged in) | `Lane2IdentityMode = 'Persistent'` | Anti-bot systems expect a *returning user*: aged cookies, accumulated history, a stable fingerprint. |
+| **Lane 3** (anonymous) | `Lane3IdentityMode = 'Fresh'` | Nothing is logged in, so discarding the identity every launch is free and correct. |
 
-> **Fresh mode does not change your IP.** Without a VPN it buys very little — sites link you by
-> IP in one step. Zero history also reads as automation, so expect more CAPTCHAs. Lane 3 does
-> this natively *and* gives you a uniform fingerprint, which Fresh mode can't.
+> **This is the setting people get wrong, and it's the most common self-inflicted cause of
+> bans.** A brand-new profile on every launch has no cookie age and no history — that is the
+> signature of automation, not of privacy. Combined with a datacenter VPN exit it is close to a
+> textbook bot profile. Vendors state it directly: keep the cookie jar and the fingerprint
+> stable so you present as the same returning user.
+>
+> A fresh profile also does **not** change your IP. On a lane where you log in, it costs you
+> heavily and buys you nothing.
 
-Anything that must survive a launch belongs in the **template**
+You get "new identity every launch" *and* "not banned" by putting them in **different lanes**
+rather than making one setting fight itself. Run `Bulkhead.ps1 -Audit` and read the **Ban risk**
+section — it scores identity age, exit reputation, geographic coherence and cookie state.
+
+Anything that must survive a Lane 3 launch belongs in the **template**
 (`%LOCALAPPDATA%\Bulkhead\brave-template`), not in a session.
 
 ## What it actually configures

@@ -75,12 +75,26 @@ $Config = @{
     # Must agree with your system timezone. '' disables the check.
     ExpectedCountry = ''
 
-    # 'Fresh'      = new identity every launch (clean profile, previous deleted)
-    # 'Persistent' = one profile kept forever; logins and history survive
+    # ---- IDENTITY MODE, PER LANE -----------------------------------------
+    # These are deliberately different, because the lanes have opposite jobs.
     #
-    # Fresh does NOT change your IP. With no tunnel it buys very little, and
-    # zero history reads as automation, so expect more CAPTCHAs.
-    IdentityMode    = 'Fresh'
+    # LANE 2 = 'Persistent'.  This is where you are LOGGED IN. Anti-bot
+    #   systems expect a returning user: aged cookies, accumulated history, a
+    #   stable fingerprint. A brand-new profile on every launch is the
+    #   signature of automation -- and paired with a datacenter VPN exit it is
+    #   close to a textbook bot profile. THIS is what gets you challenged and
+    #   banned. Vendors say it plainly: keep the cookie jar and the
+    #   fingerprint stable so you present as the same returning user.
+    #
+    # LANE 3 = 'Fresh'.  Nothing is logged in here, so discarding the identity
+    #   every launch costs nothing and is exactly right. CAPTCHAs in this lane
+    #   are the accepted price. (Mullvad Browser is already amnesic; this
+    #   setting covers the Brave fallback.)
+    #
+    # You get "new identity every launch" AND "not banned" -- by putting them
+    # in different lanes instead of fighting over one.
+    Lane2IdentityMode = 'Persistent'
+    Lane3IdentityMode = 'Fresh'
 
     DataRoot        = Join-Path $env:LOCALAPPDATA 'Bulkhead'
     DohTemplate     = 'https://dns.quad9.net/dns-query'
@@ -339,6 +353,54 @@ function Invoke-Audit {
     else { A 'MISS' 'ECH prerequisite (DoH)' 'plaintext DNS -> ECH silently inactive' 'Run option C. ECH keys arrive over DNS; without DoH your SNI stays in the clear.' 'Red' }
     Write-Note "Live proof: https://crypto.cloudflare.com/cdn-cgi/trace -> want sni=encrypted"
 
+    # ---- Ban-risk: why sites challenge you --------------------------------
+    # Static leak checks say what you look like. This says how you are SCORED.
+    Write-Head "Ban risk"
+
+    # 1. Identity mode on a logged-in lane. The single biggest self-inflicted
+    #    cause of challenges: a new profile every launch has no cookie age and
+    #    no history, which is the automation signature.
+    if ($Config.Lane2IdentityMode -eq 'Fresh') {
+        A 'MISS' 'Lane 2 identity' 'Fresh -- no cookie age, no history' `
+          "Set Lane2IdentityMode = 'Persistent' in Bulkhead.ps1. A brand-new profile every launch is the automation signature; on a lane where you log in it raises challenges sharply." 'Red'
+    } else {
+        $h = Join-Path $Config.BraveDataDir 'Default\History'
+        $age = if (Test-Path $h) { [int]((Get-Date) - (Get-Item $h).CreationTime).TotalDays } else { 0 }
+        if ($age -ge 7) { A 'OK' 'Lane 2 identity' "persistent, $age days aged" $null 'Green' }
+        else { A 'PART' 'Lane 2 identity' "persistent but only $age day(s) old" 'Young profiles still draw challenges. It improves on its own -- just keep using it instead of resetting it.' 'Yellow' }
+    }
+
+    # 2. Exit reputation. Datacenter/VPN ranges sit on every vendor's list.
+    $vpnUp = [bool](Get-VpnAdapter)
+    if ($vpnUp) {
+        A 'PART' 'Exit IP reputation' 'VPN / datacenter range' `
+          'Expected: VPN exits carry a higher baseline challenge rate than a home connection. Trade-off, not a bug. If one site is unusable, open it in Lane 1 on your home connection.' 'Yellow'
+    } else {
+        A 'OK' 'Exit IP reputation' 'residential ISP -- good reputation' $null 'Green'
+    }
+
+    # 3. Geographic coherence: exit country vs system clock.
+    $tzOff = [int][Math]::Round([TimeZoneInfo]::Local.GetUtcOffset((Get-Date)).TotalHours)
+    $offsets = @{ MA=1; PT=1; GB=1; ES=2; FR=2; DE=2; NL=2; BE=2; IT=2; CH=2; SE=2; NO=2; PL=2
+                  US=-5; CA=-5; JP=9; SG=8; AU=10; AE=4; RO=3; FI=3; TR=3 }
+    try {
+        $t = Invoke-RestMethod 'https://www.cloudflare.com/cdn-cgi/trace' -TimeoutSec 8
+        $loc = (($t -split "`n" | Where-Object { $_ -like 'loc=*' }) -replace 'loc=','').Trim()
+        if ($offsets.ContainsKey($loc)) {
+            $gap = [Math]::Abs($offsets[$loc] - $tzOff)
+            if ($gap -le 1) { A 'OK' 'Geo coherence' "exit $loc vs clock UTC+$tzOff (${gap}h)" $null 'Green' }
+            elseif ($gap -le 3) { A 'PART' 'Geo coherence' "exit $loc vs clock UTC+$tzOff (${gap}h gap)" "A ${gap}-hour gap between exit country and system clock is a mild flag. Pick an exit nearer your timezone, or accept it." 'Yellow' }
+            else { A 'MISS' 'Geo coherence' "exit $loc vs clock UTC+$tzOff (${gap}h gap)" "A ${gap}-hour gap is the classic VPN tell. Choose an exit close to your real timezone." 'Red' }
+        } else {
+            Write-Row 'INFO' 'Geo coherence' "exit $loc vs clock UTC+$tzOff -- check manually"
+        }
+    } catch { }
+
+    # 4. Cookie state. Blocking or clearing everything defeats verification.
+    $ck = Join-Path $Config.BraveDataDir 'Default\Network\Cookies'
+    if (Test-Path $ck) { A 'OK' 'Cookie state' 'persistent jar present' $null 'Green' }
+    else { A 'PART' 'Cookie state' 'no cookie jar yet' 'Sites that cannot set a cookie will re-challenge forever. Normal for a new profile.' 'Yellow' }
+
     if (-not $Brief) {
         Write-Head "Network"
         $vpn = Get-VpnAdapter
@@ -548,7 +610,20 @@ function New-FreshIdentity {
 
 function Resolve-Lane2Profile {
     param([bool]$VpnUp)
-    if ($Config.IdentityMode -ne 'Fresh') { return $Config.BraveDataDir }
+    if ($Config.Lane2IdentityMode -ne 'Fresh') {
+        # Age is an asset here: accumulated history and cookies are what make
+        # you read as a returning human rather than a fresh automation profile.
+        $h = Join-Path $Config.BraveDataDir 'Default\History'
+        if (Test-Path $h) {
+            $age = [int]((Get-Date) - (Get-Item $h).CreationTime).TotalDays
+            Write-Row 'OK' 'Identity' "persistent, $age day(s) of history" 'Green'
+        } else {
+            Write-Row 'OK' 'Identity' 'persistent (new profile, will age in)' 'Green'
+        }
+        return $Config.BraveDataDir
+    }
+    Write-Row 'WARN' 'Identity' 'Fresh on a logged-in lane -- raises ban risk' 'Yellow'
+    Write-Note "Set Lane2IdentityMode = 'Persistent' unless you know why you want this."
     try {
         $p = New-FreshIdentity
         Write-Row 'NEW' 'Fresh identity' (Split-Path $p -Leaf) 'Magenta'
@@ -853,7 +928,7 @@ function Show-Menu {
     $col = if ($State.VpnUp) { 'Green' } else { 'Red' }
     Write-Host "  Tunnel: " -NoNewline; Write-Host $tag -ForegroundColor $col -NoNewline
     if ($State.Country) { Write-Host "   Exit: $($State.Country)   IP: $($State.Ip)" -ForegroundColor DarkGray } else { Write-Host "" }
-    Write-Host "  Identity mode: $($Config.IdentityMode)" -ForegroundColor DarkGray
+    Write-Host "  Identity: Lane 2 $($Config.Lane2IdentityMode) · Lane 3 $($Config.Lane3IdentityMode)" -ForegroundColor DarkGray
     Write-Host ""
     Write-Host "   1   Lane 1  Identity    bank / gov / work     real fingerprint" -ForegroundColor Blue
     Write-Host "   2   Lane 2  Daily       shopping / social     hardened, coherent" -ForegroundColor Yellow

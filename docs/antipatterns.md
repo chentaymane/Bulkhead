@@ -87,10 +87,22 @@ population is itself the risk.
 
 If you want clean IP reputation, use a reputable paid VPN or your own mobile connection.
 
-## 12. Fresh browser profile per site visit
+## 12. Fresh browser profile on a lane where you log in
 
-Feels private, reads as automation: no history, no cache, no cookies, no prior sessions — the
-exact profile of a scraper. A little accumulated history makes you look like a person.
+The most common self-inflicted ban there is, and it feels like the *most* private choice.
+
+No history, no cache, no cookies, no prior sessions — that is the exact profile of a scraper.
+Anti-bot vendors are explicit about it: a rotating fingerprint paired with an empty or
+constantly-reset cookie jar scores *worse* than a stable one, because the thing they are
+looking for is a returning user. Pair it with a datacenter VPN exit and you have close to a
+textbook bot signature.
+
+It also buys you nothing where it hurts most: **a fresh profile does not change your IP.** Sites
+re-link you in one step.
+
+Rotate identities *across* lanes, not within one. Fresh profiles belong where nothing is logged
+in and CAPTCHAs are an acceptable price — that is Lane 3's whole job. On Lane 2, let the profile
+age; it gets *less* suspicious every day you use it.
 
 ## 13. Chasing a "unique" score instead of a clean one
 
